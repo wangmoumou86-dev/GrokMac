@@ -32,7 +32,7 @@ private struct CodeBlock: View {
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button(copied ? "已复制" : "复制") {
+                Button(copied ? tr("已复制", "Copied") : tr("复制", "Copy")) {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(code, forType: .string)
                     copied = true
@@ -46,13 +46,24 @@ private struct CodeBlock: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            ScrollView(.horizontal) {
+            if Prefs.shared.codeWrap {
                 Text(code)
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 10)
                     .padding(.bottom, 10)
+            } else {
+                ScrollView(.horizontal) {
+                    Text(code)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .fixedSize()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, 10)
+                }
             }
         }
         .background(Color.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))

@@ -39,7 +39,7 @@ final class VoiceSession {
         }
     }
 
-    func start(key: String, instructions: String) async {
+    func start(key: String, instructions: String, voice: String = "eve") async {
         guard !active else { return }
         let token = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !token.isEmpty else {
@@ -63,7 +63,7 @@ final class VoiceSession {
         send([
             "type": "session.update",
             "session": [
-                "voice": "eve",
+                "voice": voice,
                 "instructions": instructions,
                 "turn_detection": ["type": "server_vad"],
                 "audio": [

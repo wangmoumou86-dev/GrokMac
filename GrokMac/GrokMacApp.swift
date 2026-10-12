@@ -8,7 +8,7 @@ struct GrokMacApp: App {
         WindowGroup {
             RootView()
                 .environment(model)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(Prefs.shared.colorScheme)
         }
         .defaultSize(width: 1180, height: 760)
         .commands { GrokCommands(model: model) }
@@ -16,6 +16,7 @@ struct GrokMacApp: App {
         Settings {
             SettingsView()
                 .environment(model)
+                .preferredColorScheme(Prefs.shared.colorScheme)
         }
     }
 }

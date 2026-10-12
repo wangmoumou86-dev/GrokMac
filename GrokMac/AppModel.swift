@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Observation
+import UniformTypeIdentifiers
 
 @MainActor
 @Observable
@@ -130,6 +131,64 @@ final class AppModel {
 
     var active: ChatSession {
         sessions.first { $0.id == activeID } ?? sessions[0]
+    }
+
+    func deleteAllConversations() {
+        chatTask?.cancel()
+        busy = false
+        let session = ChatSession.fresh()
+        sessions = [session]
+        activeID = session.id
+        saveNow()
+    }
+
+    /// Clears the URL cache, temp downloads and generated videos. Conversations stay.
+    func clearCache() -> String {
+        URLCache.shared.removeAllCachedResponses()
+        let fm = FileManager.default
+        var freed: Int64 = 0
+        let videos = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("GrokMac/Videos", isDirectory: true)
+        let caches = fm.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent(Bundle.main.bundleIdentifier ?? "app.grok.mac", isDirectory: true)
+        for folder in [videos, caches] {
+            for name in (try? fm.contentsOfDirectory(atPath: folder.path)) ?? [] {
+                let url = folder.appendingPathComponent(name)
+                freed += Int64((try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey]).totalFileAllocatedSize) ?? 0)
+                try? fm.removeItem(at: url)
+            }
+        }
+        return ByteCountFormatter.string(fromByteCount: freed, countStyle: .file)
+    }
+
+    func exportConversations() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "Grok 对话导出.md"
+        panel.allowedContentTypes = [.init(filenameExtension: "md")!, .json]
+        panel.message = tr("选 .md 导出为 Markdown，选 .json 导出原始数据。", "Use .md for Markdown or .json for raw data.")
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if url.pathExtension.lowercased() == "json" {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.dateEncodingStrategy = .iso8601
+            if let data = try? encoder.encode(sessions) { try? data.write(to: url, options: .atomic) }
+            return
+        }
+        var out = ""
+        let stamp = DateFormatter()
+        stamp.dateFormat = "yyyy-MM-dd HH:mm"
+        for session in sessions {
+            out += "# \(session.title)\n\n_\(stamp.string(from: session.createdAt))_\n\n"
+            for message in session.messages where message.role != .meta {
+                switch message.role {
+                case .user: out += "**你**：\(message.content)\n\n"
+                case .assistant: out += "**Grok**：\(message.content)\n\n"
+                case .tool:
+                    if let tool = message.tool { out += "```\n$ \(tool.input)\n\(tool.output)\n```\n\n" }
+                case .meta: break
+                }
+            }
+            out += "---\n\n"
+        }
+        try? out.write(to: url, atomically: true, encoding: .utf8)
     }
 
     func newSession() {
@@ -346,7 +405,9 @@ final class AppModel {
         voiceOpen = true
         let instructions = "You are Grok, built by xAI, talking with the user by voice in a Mac app. Reply in the user's language, briefly and naturally, the way people speak. " + contextNote()
         let key = KeychainStore.load()
-        Task { await voice.start(key: key, instructions: instructions) }
+        let refine = Prefs.shared.refineDictation ? " The user's speech may include filler words and false starts; respond to what they mean." : ""
+        let chosenVoice = Prefs.shared.voice
+        Task { await voice.start(key: key, instructions: instructions + refine, voice: chosenVoice) }
     }
 
     /// Ends voice mode and keeps the spoken exchange in the current chat.
@@ -357,7 +418,7 @@ final class AppModel {
         guard !spoken.isEmpty else { return }
         updateActive { session in
             for line in spoken {
-                session.messages.append(ChatMessage(role: line.fromUser ? .user : .assistant, content: line.text, surface: .web))
+                session.messages.append(ChatMessage(role: line.fromUser ? .user : .assistant, content: line.fromUser ? Prefs.shared.refine(line.text) : line.text, surface: .web))
             }
             if session.title == "新对话", let first = spoken.first(where: \.fromUser) {
                 session.title = String(first.text.prefix(36))
@@ -501,6 +562,8 @@ final class AppModel {
 
     private func finish(sessionID: UUID, messageID: UUID, content: String, error: Bool) {
         replaceAssistant(sessionID: sessionID, messageID: messageID, content: content, pending: false, error: error)
+        let title = sessions.first(where: { $0.id == sessionID })?.title ?? "Grok"
+        Prefs.shared.notifyFinished(title: error ? tr("Grok 没有完成", "Grok didn't finish") : title, body: content)
         scheduleSave()
     }
 
@@ -538,7 +601,7 @@ final class AppModel {
         }
     }
 
-    private func saveNow() {
+    func saveNow() {
         var snapshot = sessions
         for index in snapshot.indices {
             snapshot[index].messages.removeAll { $0.pending && $0.content.isEmpty }
@@ -568,6 +631,8 @@ final class AppModel {
 
     func contextNote() -> String {
         var lines: [String] = []
+        let personal = Prefs.shared.personalNote()
+        if !personal.isEmpty { lines.append(personal) }
         if let bot = bots.first(where: { $0.id == activeBotID }) {
             lines.append("Active bot \(bot.name): \(bot.prompt)")
         }

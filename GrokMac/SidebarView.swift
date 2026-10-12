@@ -12,7 +12,7 @@ struct SidebarView: View {
                     Image(systemName: "square.and.pencil")
                 }
                 .buttonStyle(.plain)
-                .help("新对话")
+                .help(tr("新对话", "New chat"))
                 Spacer()
             }
             .padding(.horizontal, 12)
@@ -43,7 +43,7 @@ struct SidebarView: View {
                     }
                     if model.botsOpen {
                         if model.bots.isEmpty {
-                            Text("还没有 Bot").foregroundStyle(.secondary)
+                            Text(tr("还没有 Bot", "No bots yet")).foregroundStyle(.secondary)
                         }
                         ForEach(model.bots) { bot in
                             Button {
@@ -74,21 +74,21 @@ struct SidebarView: View {
                             }
                             .buttonStyle(.plain)
                             .contextMenu {
-                                Button("删除", role: .destructive) { model.remove(session.id) }
+                                Button(tr("删除", "Delete"), role: .destructive) { model.remove(session.id) }
                             }
                         }
                     }
                 }
             }
-            .searchable(text: $query, placement: .sidebar, prompt: "搜索")
+            .searchable(text: $query, placement: .sidebar, prompt: tr("搜索", "Search"))
             Divider()
             Group {
                 if model.signedIn {
                     Menu {
-                        Button("重新登录") { model.beginLogin() }
-                        Button("退出登录", role: .destructive) { model.signOut() }
+                        Button(tr("重新登录", "Sign in again")) { model.beginLogin() }
+                        Button(tr("退出登录", "Sign out"), role: .destructive) { model.signOut() }
                     } label: {
-                        Label("已登录 Grok", systemImage: "person.crop.circle.badge.checkmark")
+                        Label(tr("已登录 Grok", "Signed in"), systemImage: "person.crop.circle.badge.checkmark")
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 6)
                             .padding(.horizontal, 8)
@@ -101,7 +101,7 @@ struct SidebarView: View {
                     Button {
                         model.beginLogin()
                     } label: {
-                        Label("登录", systemImage: "person.crop.circle")
+                        Label(tr("登录", "Sign in"), systemImage: "person.crop.circle")
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 6)
                             .padding(.horizontal, 8)
@@ -126,7 +126,7 @@ struct SidebarView: View {
             Button {
                 NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             } label: {
-                Label("设置", systemImage: "gearshape")
+                Label(tr("设置", "Settings"), systemImage: "gearshape")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)

@@ -40,7 +40,7 @@ struct ChatPane: View {
                         .frame(maxWidth: .infinity)
                     }
                     .onChange(of: visible.last?.content) { _, _ in
-                        if let id = visible.last?.id {
+                        if Prefs.shared.autoScroll, let id = visible.last?.id {
                             withAnimation(.easeOut(duration: 0.15)) {
                                 proxy.scrollTo(id, anchor: .bottom)
                             }
@@ -64,7 +64,7 @@ struct ChatPane: View {
                 } label: {
                     Image(systemName: "waveform")
                 }
-                .help("朗读上一条回答")
+                .help(tr("朗读上一条回答", "Read the last reply aloud"))
             }
         }
         .sheet(isPresented: Binding(get: { model.voiceOpen }, set: { if !$0 { model.endVoice() } })) {
@@ -96,13 +96,24 @@ struct ChatPane: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            TextField("询问任何问题", text: $draft, axis: .vertical)
+            TextField(Prefs.shared.commandEnterSends ? tr("询问任何问题（⌘↩ 发送）", "Ask anything (⌘↩ to send)") : tr("询问任何问题", "Ask anything"), text: $draft, axis: .vertical)
                 .textFieldStyle(.plain)
                 .lineLimit(1...6)
-                .onSubmit { submit() }
+                .onKeyPress(keys: [.return]) { press in
+                    guard Prefs.shared.commandEnterSends else { return .ignored }
+                    if press.modifiers.contains(.command) {
+                        submit()
+                    } else if !press.modifiers.contains(.shift) {
+                        draft += "\n"
+                    } else {
+                        return .ignored
+                    }
+                    return .handled
+                }
+                .onSubmit { if !Prefs.shared.commandEnterSends { submit() } }
             HStack {
                 Menu {
-                    Button("插入文本文件") { importing = true }
+                    Button(tr("插入文本文件", "Insert text file")) { importing = true }
                 } label: {
                     Image(systemName: "plus")
                 }
@@ -116,7 +127,7 @@ struct ChatPane: View {
                         Image(systemName: "paperclip")
                     }
                     .buttonStyle(.plain)
-                    .help("添加图片或 PDF（也可以直接拖进来）")
+                    .help(tr("添加图片或 PDF（也可以直接拖进来）", "Add images or PDFs (or drag them in)"))
                 }
 
                 Menu {
@@ -149,7 +160,7 @@ struct ChatPane: View {
                 }
 
                 if model.place != .imagine {
-                    SearchToggle(title: "联网", icon: "globe", on: model.webSearch) { model.webSearch.toggle() }
+                    SearchToggle(title: tr("联网", "Web"), icon: "globe", on: model.webSearch) { model.webSearch.toggle() }
                         .help("让 Grok 搜索网页并附上来源")
                     SearchToggle(title: "X", icon: "at", on: model.xSearch) { model.xSearch.toggle() }
                         .help("让 Grok 搜索 X 上的帖子")
@@ -164,7 +175,7 @@ struct ChatPane: View {
                             .frame(width: 28, height: 28)
                     }
                     .buttonStyle(.plain)
-                    .help("语音对话")
+                    .help(tr("语音对话", "Voice mode"))
                     .disabled(model.busy)
                 }
                 Button {
