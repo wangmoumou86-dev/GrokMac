@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct SidebarView: View {
@@ -41,6 +42,15 @@ struct SidebarView: View {
             }
             .searchable(text: $query, placement: .sidebar, prompt: "搜索")
             Divider()
+            Button {
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            } label: {
+                Label("设置", systemImage: "gearshape")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
             Button {
                 model.cliOpen.toggle()
             } label: {
