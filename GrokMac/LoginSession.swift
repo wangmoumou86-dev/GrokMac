@@ -70,7 +70,7 @@ enum LoginSession {
         NSWorkspace.shared.open(url, configuration: config)
     }
 
-    private static func accept(_ connection: NWConnection) {
+    nonisolated private static func accept(_ connection: NWConnection) {
         connection.start(queue: .global(qos: .userInitiated))
         connection.receive(minimumIncompleteLength: 1, maximumLength: 16_384) { data, _, _, _ in
             let text = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
