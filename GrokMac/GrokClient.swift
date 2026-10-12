@@ -112,32 +112,50 @@ enum GrokClient {
         key: String,
         history: [ChatMessage],
         root: URL,
+        mode: AgentMode,
+        autoRun: Bool,
+        network: Bool,
         onTool: @escaping @MainActor (ToolTrace) -> Void,
+        onGate: @escaping @MainActor (String, String, String) async -> String,
         onDelta: @escaping @MainActor (String) -> Void
     ) async throws {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw GrokClientError.missingKey }
-
+        let brief = LocalTools.projectBrief(root)
+        let modeLine = mode == .ask ? "Mode: ask. Read only." : mode == .plan ? "Mode: plan. Read only, todos allowed." : "Mode: code. Edits wait for approval unless auto-run is on."
         var messages: [[String: Any]] = [[
             "role": "system",
             "content": """
-            You are Grok, a coding agent on the user's Mac with the same tools as Codex and Claude Code: bash, read_file, write_file, edit_file, glob, grep, web_search, web_fetch, todo_write, generate_image.
-            The working directory is the project folder the user selected. Paths are relative to it. bash starts there.
-            Use tools to inspect and change that project. Never claim a command ran or a file changed unless the tool result says so.
-            Do not read secrets outside the project. Reply in the user's language and finish with what you actually did.
+            You are Grok, a coding agent with Codex and Claude Code style tools: bash, read_file, write_file, edit_file, apply_patch, glob, grep, codebase_search, web_search, web_fetch, todo_write, generate_image, ask_user, undo, run_tests, open_pr.
+            Paths are relative to the selected project. Never claim a change unless a tool result says so.
+            \(modeLine)
+            Use ask_user when you need a decision. Use run_tests after code changes. Use apply_patch for multi-line edits.
+            \(brief.isEmpty ? "" : "Project notes:\n\(brief)")
             """,
         ]]
         for message in history.suffix(24) {
             if message.role == .tool, let tool = message.tool {
                 messages.append(["role": "assistant", "content": String("[\(tool.name)] \(tool.input)\n\(tool.output)".prefix(4000))])
+            } else if message.role == .user, let image = message.image, image.hasPrefix("data:image/") {
+                messages.append([
+                    "role": "user",
+                    "content": [
+                        ["type": "text", "text": String(message.content.prefix(6000))],
+                        ["type": "image_url", "image_url": ["url": image]],
+                    ],
+                ])
             } else if (message.role == .user || message.role == .assistant), !message.content.isEmpty {
                 messages.append(["role": message.role.rawValue, "content": String(message.content.prefix(6000))])
             }
         }
 
-        for _ in 0..<10 {
+        let visible = agentTools.filter { tool in
+            let name = ((tool["function"] as? [String: Any])?["name"] as? String) ?? ""
+            return allowed(mode, name)
+        }
+        for _ in 0..<16 {
             if Task.isCancelled { return }
-            let turn = try await complete(key: trimmed, messages: messages)
+            let turn = try await complete(key: trimmed, messages: messages, tools: visible)
             if turn.calls.isEmpty {
                 if !turn.text.isEmpty { await onDelta(turn.text) }
                 return
@@ -156,13 +174,51 @@ enum GrokClient {
             messages.append(assistant)
             for call in turn.calls {
                 if Task.isCancelled { return }
+                if !allowed(mode, call.name) {
+                    let output = "当前是\(mode == .ask ? "提问" : "计划")模式，不能改文件或执行命令。"
+                    await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: output, status: "error"))
+                    messages.append(["role": "tool", "tool_call_id": call.id, "content": output])
+                    continue
+                }
+                if call.name == "ask_user" {
+                    let question = (jsonObject(call.arguments)["question"] as? String) ?? "继续吗？"
+                    await onTool(ToolTrace(id: call.id, name: call.name, input: question, output: "", status: "ask"))
+                    let answer = await onGate("需要你回答", question, "ask")
+                    let output = answer == "no" || answer.isEmpty ? "用户没有回答。" : answer
+                    await onTool(ToolTrace(id: call.id, name: call.name, input: question, output: output, status: "done"))
+                    messages.append(["role": "tool", "tool_call_id": call.id, "content": output])
+                    continue
+                }
+                if mode == .code, !autoRun, mutating.contains(call.name) {
+                    await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: "", status: "approval"))
+                    let answer = await onGate("允许 \(call.name)？", call.arguments, "approve")
+                    if answer != "yes" {
+                        let output = "用户拒绝了这次操作。"
+                        await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: output, status: "error"))
+                        messages.append(["role": "tool", "tool_call_id": call.id, "content": output])
+                        continue
+                    }
+                }
                 await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: "", status: "running"))
-                let (output, ok) = await LocalTools.run(name: call.name, arguments: call.arguments, root: root, key: trimmed)
+                let (output, ok) = await LocalTools.run(name: call.name, arguments: call.arguments, root: root, key: trimmed, network: network)
                 await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: output, status: ok ? "done" : "error"))
                 messages.append(["role": "tool", "tool_call_id": call.id, "content": output])
             }
         }
         await onDelta("这一轮的工具次数用完了。")
+    }
+
+    private static let readOnly: Set<String> = ["read_file", "glob", "grep", "codebase_search", "web_search", "web_fetch", "ask_user", "undo"]
+    private static let mutating: Set<String> = ["bash", "write_file", "edit_file", "apply_patch", "run_tests", "open_pr"]
+
+    private static func allowed(_ mode: AgentMode, _ name: String) -> Bool {
+        if mode == .ask { return readOnly.contains(name) }
+        if mode == .plan { return readOnly.contains(name) || name == "todo_write" }
+        return true
+    }
+
+    private static func jsonObject(_ raw: String) -> [String: Any] {
+        (try? JSONSerialization.jsonObject(with: Data(raw.utf8))) as? [String: Any] ?? [:]
     }
 
     private struct ToolCall {
@@ -171,7 +227,7 @@ enum GrokClient {
         var arguments: String
     }
 
-    private static func complete(key: String, messages: [[String: Any]]) async throws -> (text: String, calls: [ToolCall]) {
+    private static func complete(key: String, messages: [[String: Any]], tools: [[String: Any]]) async throws -> (text: String, calls: [ToolCall]) {
         var request = URLRequest(url: URL(string: "https://api.x.ai/v1/chat/completions")!)
         request.httpMethod = "POST"
         request.timeoutInterval = 60
@@ -181,7 +237,7 @@ enum GrokClient {
             "model": "grok-4.5",
             "temperature": 0.2,
             "messages": messages,
-            "tools": agentTools,
+            "tools": tools,
             "tool_choice": "auto",
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
@@ -206,11 +262,17 @@ enum GrokClient {
         tool("write_file", "Create or replace a text file in the project.", ["path", "content"]),
         tool("edit_file", "Replace one exact occurrence of old_string with new_string.", ["path", "old_string", "new_string"]),
         tool("glob", "Find files whose relative path contains the pattern.", ["pattern"]),
-        tool("grep", "Search file contents. path is an optional relative prefix.", ["pattern"], extra: ["path": "string"]),
+        tool("grep", "Search file contents with a regular expression. path is an optional relative prefix.", ["pattern"], extra: ["path": "string"]),
+        tool("codebase_search", "Find the project snippets that best match the words.", ["query"]),
         tool("web_search", "Search the live web and X.", ["query"]),
         tool("web_fetch", "Fetch a public http(s) URL and return text.", ["url"]),
         tool("todo_write", "Replace the project task list.", [], extra: ["todos": "array"]),
         tool("generate_image", "Generate an image and return its URL.", ["prompt"]),
+        tool("ask_user", "Ask the user a question and wait.", ["question"]),
+        tool("undo", "Undo the last file change.", []),
+        tool("run_tests", "Run the project tests. Pass command when the default is wrong.", [], extra: ["command": "string"]),
+        tool("open_pr", "Create a GitHub pull request with gh.", ["title"], extra: ["body": "string"]),
+        tool("apply_patch", "Apply a Codex-style patch with *** Add File, *** Update File, or *** Delete File.", ["patch"]),
     ]
 
     private static func tool(_ name: String, _ description: String, _ required: [String], extra: [String: String] = [:]) -> [String: Any] {

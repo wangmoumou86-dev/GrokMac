@@ -14,6 +14,12 @@ final class AppModel {
     var showPalette = false
     var needsKey = false
     var projectLabel = ProjectStore.label()
+    var autoRun = false
+    var allowNetwork = true
+    var gateTitle = ""
+    var gateDetail = ""
+    var gateKind = ""
+    private var gateWait: CheckedContinuation<String, Never>?
 
     private var chatTask: Task<Void, Never>?
     private var saveTask: Task<Void, Never>?
@@ -82,6 +88,7 @@ final class AppModel {
 
     func stop() {
         chatTask?.cancel()
+        if gateWait != nil { decide("no") }
     }
 
     func send(_ raw: String, surface: ChatSurface) {
@@ -172,6 +179,9 @@ final class AppModel {
             return .done
         case "project", "folder":
             return done("当前工程\n\(projectLabel)\n在设置（⌘,）里更换。工具只会改这个文件夹。")
+        case "undo":
+            undoLastChange()
+            return .done
         default:
             return done("未知命令 /\(cmd)。输入 /help 查看。")
         }
@@ -252,12 +262,24 @@ final class AppModel {
         defer { access.close() }
         var acc = ""
         do {
-            try await GrokClient.runAgent(key: key, history: history, root: access.root) { trace in
-                self.upsertTool(sessionID: sessionID, before: messageID, trace: trace)
-            } onDelta: { chunk in
-                acc += chunk
-                self.replaceAssistant(sessionID: sessionID, messageID: messageID, content: acc, pending: true, error: false)
-            }
+            try await GrokClient.runAgent(
+                key: key,
+                history: history,
+                root: access.root,
+                mode: mode,
+                autoRun: autoRun,
+                network: allowNetwork,
+                onTool: { trace in
+                    self.upsertTool(sessionID: sessionID, before: messageID, trace: trace)
+                },
+                onGate: { title, detail, kind in
+                    await self.waitGate(title: title, detail: detail, kind: kind)
+                },
+                onDelta: { chunk in
+                    acc += chunk
+                    self.replaceAssistant(sessionID: sessionID, messageID: messageID, content: acc, pending: true, error: false)
+                }
+            )
             if Task.isCancelled {
                 finish(sessionID: sessionID, messageID: messageID, content: acc.isEmpty ? "已停止。" : acc, error: false)
             } else if acc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -276,6 +298,30 @@ final class AppModel {
             }
         }
         busy = false
+    }
+
+    func decide(_ value: String) {
+        gateTitle = ""
+        gateDetail = ""
+        gateKind = ""
+        gateWait?.resume(returning: value)
+        gateWait = nil
+    }
+
+    func undoLastChange() {
+        guard let access = ProjectAccess.open() else { return }
+        Task { @MainActor in
+            let (output, _) = await LocalTools.run(name: "undo", arguments: "{}", root: access.root, key: "", network: false)
+            access.close()
+            self.meta(output)
+        }
+    }
+
+    private func waitGate(title: String, detail: String, kind: String) async -> String {
+        gateTitle = title
+        gateDetail = String(detail.prefix(1200))
+        gateKind = kind
+        return await withCheckedContinuation { gateWait = $0 }
     }
 
     private func upsertTool(sessionID: UUID, before messageID: UUID, trace: ToolTrace) {

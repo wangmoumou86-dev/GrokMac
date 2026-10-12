@@ -83,6 +83,7 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     var pending: Bool
     var error: Bool
     var tool: ToolTrace?
+    var image: String?
 
     init(
         id: UUID = UUID(),
@@ -92,7 +93,8 @@ struct ChatMessage: Identifiable, Codable, Equatable {
         createdAt: Date = .now,
         pending: Bool = false,
         error: Bool = false,
-        tool: ToolTrace? = nil
+        tool: ToolTrace? = nil,
+        image: String? = nil
     ) {
         self.id = id
         self.role = role
@@ -102,6 +104,7 @@ struct ChatMessage: Identifiable, Codable, Equatable {
         self.pending = pending
         self.error = error
         self.tool = tool
+        self.image = image
     }
 }
 

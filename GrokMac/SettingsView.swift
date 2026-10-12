@@ -8,6 +8,20 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section("工具") {
+                Toggle("改动前先确认", isOn: Binding(
+                    get: { !model.autoRun },
+                    set: { model.autoRun = !$0 }
+                ))
+                Toggle("命令可以联网", isOn: Binding(
+                    get: { model.allowNetwork },
+                    set: { model.allowNetwork = $0 }
+                ))
+                Text("提问和计划模式不会改文件。代码模式默认每次改动都要你点允许。撤销在终端里输入 /undo。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("撤销上一次改动") { model.undoLastChange() }
+            }
             Section("工程文件夹") {
                 Text(model.projectLabel)
                     .font(.caption)
@@ -36,7 +50,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 340)
+        .frame(width: 460, height: 520)
         .padding()
         .onChange(of: key) { _, _ in saved = false }
     }

@@ -1,12 +1,12 @@
 import Foundation
 
 enum LocalTools {
-    static func run(name: String, arguments: String, root: URL, key: String) async -> (String, Bool) {
+    static func run(name: String, arguments: String, root: URL, key: String, network: Bool = true) async -> (String, Bool) {
         let args = (try? JSONSerialization.jsonObject(with: Data(arguments.utf8))) as? [String: Any] ?? [:]
         let str = { (key: String) -> String in args[key] as? String ?? "" }
         switch name {
         case "bash":
-            return await bash(root: root, command: str("command"))
+            return await bash(root: root, command: str("command"), network: network)
         case "read_file":
             let offset = (args["offset"] as? NSNumber)?.intValue ?? 1
             let limit = (args["limit"] as? NSNumber)?.intValue ?? 200
@@ -15,10 +15,14 @@ enum LocalTools {
             return writeFile(root: root, path: str("path"), content: str("content"))
         case "edit_file":
             return editFile(root: root, path: str("path"), old: str("old_string"), new: str("new_string"))
+        case "apply_patch":
+            return patch(root: root, text: str("patch"))
         case "glob":
             return glob(root: root, pattern: str("pattern"))
         case "grep":
             return grep(root: root, pattern: str("pattern"), scope: str("path"))
+        case "codebase_search":
+            return search(root: root, query: str("query"))
         case "web_search":
             return await webSearch(key: key, query: str("query"))
         case "web_fetch":
@@ -27,6 +31,14 @@ enum LocalTools {
             return todo(root: root, raw: args["todos"])
         case "generate_image":
             return await image(key: key, prompt: str("prompt"))
+        case "undo":
+            return undo(root: root)
+        case "run_tests":
+            return await bash(root: root, command: testCommand(root: root, requested: str("command")), network: network)
+        case "open_pr":
+            let title = str("title").replacingOccurrences(of: "\"", with: "")
+            let body = str("body").replacingOccurrences(of: "\"", with: "")
+            return await bash(root: root, command: "git status --short && gh pr create --title \"\(title)\" --body \"\(body)\"", network: true)
         default:
             return ("没有这个工具：\(name)", false)
         }
@@ -67,6 +79,7 @@ enum LocalTools {
         do {
             let url = try resolve(root, path)
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            snapshot(root: root, path: path)
             try String(content.prefix(200_000)).write(to: url, atomically: true, encoding: .utf8)
             return ("已写入 \(path)", true)
         } catch {
@@ -80,6 +93,7 @@ enum LocalTools {
             let text = try String(contentsOf: url, encoding: .utf8)
             let hits = text.components(separatedBy: old).count - 1
             guard !old.isEmpty, hits == 1 else { return ("需要恰好一处匹配，现在是 \(hits) 处。", false) }
+            snapshot(root: root, path: path)
             try text.replacingOccurrences(of: old, with: new).write(to: url, atomically: true, encoding: .utf8)
             return ("已修改 \(path)", true)
         } catch {
@@ -99,9 +113,14 @@ enum LocalTools {
         var hits: [String] = []
         for file in walk(root) where scope.isEmpty || file.hasPrefix(scope) {
             guard hits.count < 80, let url = try? resolve(root, file), let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
-            for (index, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() where line.contains(pattern) {
-                hits.append("\(file):\(index + 1):\(line)")
-                if hits.count >= 80 { break }
+            let regex = try? NSRegularExpression(pattern: pattern)
+            for (index, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+                let row = String(line)
+                let matched = regex?.firstMatch(in: row, range: NSRange(row.startIndex..., in: row)) != nil || row.contains(pattern)
+                if matched {
+                    hits.append("\(file):\(index + 1):\(row)")
+                    if hits.count >= 80 { break }
+                }
             }
         }
         return (clip(hits.isEmpty ? "没有匹配。" : hits.joined(separator: "\n")), true)
@@ -120,13 +139,26 @@ enum LocalTools {
         }
     }
 
-    private static func bash(root: URL, command: String) async -> (String, Bool) {
+    private static func bash(root: URL, command: String, network: Bool = true) async -> (String, Bool) {
         let limited = String(command.prefix(4_000))
         return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
-                process.executableURL = URL(fileURLWithPath: "/bin/bash")
-                process.arguments = ["-lc", limited]
+                if !network, FileManager.default.isExecutableFile(atPath: "/usr/bin/sandbox-exec") {
+                    let profile = """
+                    (version 1)
+                    (deny default)
+                    (allow process*)
+                    (allow file-read* file-write* (subpath "\(root.path)"))
+                    (allow file-read* (subpath "/usr") (subpath "/bin") (subpath "/opt") (subpath "/Library") (subpath "/System") (subpath "/Applications"))
+                    (deny network*)
+                    """
+                    process.executableURL = URL(fileURLWithPath: "/usr/bin/sandbox-exec")
+                    process.arguments = ["-p", profile, "/bin/bash", "-lc", limited]
+                } else {
+                    process.executableURL = URL(fileURLWithPath: "/bin/bash")
+                    process.arguments = ["-lc", limited]
+                }
                 process.currentDirectoryURL = root
                 var env = ProcessInfo.processInfo.environment
                 for name in ["XAI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"] {
@@ -258,6 +290,153 @@ enum LocalTools {
 
     private static func clip(_ text: String) -> String {
         text.count > 8_000 ? String(text.prefix(8_000)) + "\n…截断" : text
+    }
+
+    private static func snapshot(root: URL, path: String) {
+        let file = try? resolve(root, path)
+        let content = file.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+        let log = root.appendingPathComponent(".grok/undo.json")
+        try? FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
+        var stack = (try? JSONSerialization.jsonObject(with: Data(contentsOf: log))) as? [[String: Any]] ?? []
+        stack.append(["path": path, "content": (content ?? NSNull()) as Any])
+        if stack.count > 30 { stack.removeFirst(stack.count - 30) }
+        if let data = try? JSONSerialization.data(withJSONObject: stack) {
+            try? data.write(to: log)
+        }
+    }
+
+    private static func undo(root: URL) -> (String, Bool) {
+        let log = root.appendingPathComponent(".grok/undo.json")
+        guard var stack = (try? JSONSerialization.jsonObject(with: Data(contentsOf: log))) as? [[String: Any]], let last = stack.popLast() else {
+            return ("没有可撤销的修改。", false)
+        }
+        if let data = try? JSONSerialization.data(withJSONObject: stack) { try? data.write(to: log) }
+        let rel = last["path"] as? String ?? ""
+        guard let file = try? resolve(root, rel) else { return ("路径无效。", false) }
+        if last["content"] is NSNull || last["content"] == nil {
+            try? FileManager.default.removeItem(at: file)
+            return ("已撤销新建 \(rel)", true)
+        }
+        let content = last["content"] as? String ?? ""
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? content.write(to: file, atomically: true, encoding: .utf8)
+        return ("已撤销 \(rel)", true)
+    }
+
+    private static func search(root: URL, query: String) -> (String, Bool) {
+        let terms = query.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count > 1 }
+        guard !terms.isEmpty else { return ("没有可搜的词。", false) }
+        var ranked: [(String, Int, [String])] = []
+        for file in walk(root) {
+            guard let url = try? resolve(root, file), let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            let lower = text.lowercased()
+            let score = terms.reduce(0) { $0 + lower.components(separatedBy: $1).count - 1 }
+            if score == 0 { continue }
+            let lines = text.split(separator: "\n").map(String.init).filter { line in terms.contains { line.lowercased().contains($0) } }
+            ranked.append((file, score, Array(lines.prefix(6))))
+        }
+        ranked.sort { $0.1 > $1.1 }
+        let body = ranked.prefix(5).map { "\($0.0)\n\($0.2.joined(separator: "\n"))" }.joined(separator: "\n\n")
+        return (clip(body.isEmpty ? "没有匹配。" : body), true)
+    }
+
+    private static func patch(root: URL, text: String) -> (String, Bool) {
+        var notes: [String] = []
+        let lines = text.replacingOccurrences(of: "\r", with: "").split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        var i = 0
+        while i < lines.count {
+            let line = lines[i]
+            if let rel = line.dropPrefix("*** Add File: ") {
+                i += 1
+                var buf: [String] = []
+                while i < lines.count, !lines[i].hasPrefix("*** ") {
+                    if lines[i].hasPrefix("+") { buf.append(String(lines[i].dropFirst())) }
+                    i += 1
+                }
+                snapshot(root: root, path: rel)
+                if let file = try? resolve(root, rel) {
+                    try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try? buf.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
+                    notes.append("已添加 \(rel)")
+                }
+                continue
+            }
+            if let rel = line.dropPrefix("*** Delete File: ") {
+                snapshot(root: root, path: rel)
+                if let file = try? resolve(root, rel) { try? FileManager.default.removeItem(at: file) }
+                notes.append("已删除 \(rel)")
+                i += 1
+                continue
+            }
+            if let rel = line.dropPrefix("*** Update File: ") {
+                guard var current = (try? resolve(root, rel)).flatMap({ try? String(contentsOf: $0, encoding: .utf8) }) else {
+                    return ("读不到 \(rel)", false)
+                }
+                snapshot(root: root, path: rel)
+                i += 1
+                var oldLines: [String] = []
+                var newLines: [String] = []
+                func flush() -> String? {
+                    guard !oldLines.isEmpty || !newLines.isEmpty else { return nil }
+                    let old = oldLines.joined(separator: "\n")
+                    let hits = old.isEmpty ? 0 : current.components(separatedBy: old).count - 1
+                    if old.isEmpty || hits != 1 { return "\(rel) 的补丁对不上（\(hits) 处）。" }
+                    current = current.replacingOccurrences(of: old, with: newLines.joined(separator: "\n"))
+                    oldLines = []
+                    newLines = []
+                    return nil
+                }
+                while i < lines.count, !lines[i].hasPrefix("*** ") {
+                    let row = lines[i]
+                    if row.hasPrefix("@@") {
+                        if let error = flush() { return (error, false) }
+                    } else if row.hasPrefix("-") {
+                        oldLines.append(String(row.dropFirst()))
+                    } else if row.hasPrefix("+") {
+                        newLines.append(String(row.dropFirst()))
+                    } else if row.hasPrefix(" ") {
+                        oldLines.append(String(row.dropFirst()))
+                        newLines.append(String(row.dropFirst()))
+                    }
+                    i += 1
+                }
+                if let error = flush() { return (error, false) }
+                if let file = try? resolve(root, rel) {
+                    try? current.write(to: file, atomically: true, encoding: .utf8)
+                }
+                notes.append("已打补丁 \(rel)")
+                continue
+            }
+            i += 1
+        }
+        return (notes.isEmpty ? "补丁里没有文件。" : notes.joined(separator: "\n"), !notes.isEmpty)
+    }
+
+    private static func testCommand(root: URL, requested: String) -> String {
+        if !requested.trimmingCharacters(in: .whitespaces).isEmpty { return String(requested.prefix(300)) }
+        let exists = { (name: String) in FileManager.default.fileExists(atPath: root.appendingPathComponent(name).path) }
+        if exists("package.json") { return "npm test" }
+        if exists("Package.swift") { return "swift test" }
+        if exists("pyproject.toml") || exists("pytest.ini") { return "pytest" }
+        if exists("go.mod") { return "go test ./..." }
+        return "echo 没有认出测试命令"
+    }
+
+    static func projectBrief(_ root: URL) -> String {
+        var chunks: [String] = []
+        for name in ["AGENTS.md", "CLAUDE.md", "README.md"] {
+            let url = root.appendingPathComponent(name)
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            chunks.append("# \(name)\n\(text.prefix(2500))")
+        }
+        return String(chunks.joined(separator: "\n\n").prefix(6000))
+    }
+}
+
+private extension String {
+    func dropPrefix(_ prefix: String) -> String? {
+        guard hasPrefix(prefix) else { return nil }
+        return String(dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
     }
 }
 

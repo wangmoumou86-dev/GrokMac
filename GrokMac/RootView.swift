@@ -22,6 +22,44 @@ struct RootView: View {
         .sheet(isPresented: $model.needsKey) {
             KeyPrompt()
         }
+        .safeAreaInset(edge: .bottom) {
+            if !model.gateTitle.isEmpty {
+                GateBar()
+            }
+        }
+    }
+}
+
+private struct GateBar: View {
+    @Environment(AppModel.self) private var model
+    @State private var answer = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(model.gateTitle).font(.headline)
+            Text(model.gateDetail)
+                .font(.caption.monospaced())
+                .lineLimit(8)
+                .textSelection(.enabled)
+            if model.gateKind == "ask" {
+                TextField("回答", text: $answer)
+                    .textFieldStyle(.roundedBorder)
+                HStack {
+                    Button("跳过") { model.decide("no") }
+                    Button("回答") { model.decide(answer) }
+                        .keyboardShortcut(.defaultAction)
+                }
+            } else {
+                HStack {
+                    Button("拒绝") { model.decide("no") }
+                    Button("允许") { model.decide("yes") }
+                        .keyboardShortcut(.defaultAction)
+                }
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.bar)
     }
 }
 
