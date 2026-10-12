@@ -5,11 +5,13 @@ struct MarkdownView: View {
     var text: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(blocks(text).enumerated()), id: \.offset) { _, block in
                 switch block {
                 case .prose(let value):
                     Text(markdown(value))
+                        .font(.system(size: 15))
+                        .lineSpacing(7.5)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 case .code(let lang, let code):
@@ -29,10 +31,10 @@ private struct CodeBlock: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text(lang.isEmpty ? "text" : lang)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Theme.fg2)
                 Spacer()
-                Button(copied ? tr("已复制", "Copied") : tr("复制", "Copy")) {
+                Button {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(code, forType: .string)
                     copied = true
@@ -40,34 +42,47 @@ private struct CodeBlock: View {
                         try? await Task.sleep(for: .seconds(1.2))
                         copied = false
                     }
-                }
-                .buttonStyle(.borderless)
-                .font(.caption)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            if Prefs.shared.codeWrap {
-                Text(code)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 10)
-            } else {
-                ScrollView(.horizontal) {
-                    Text(code)
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
-                        .fixedSize()
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                } label: {
+                    Label(copied ? tr("已复制", "Copied") : tr("复制", "Copy"), systemImage: copied ? "checkmark" : "doc.on.doc")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Theme.fg2)
                         .padding(.horizontal, 10)
-                        .padding(.bottom, 10)
+                        .frame(height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.leading, 16)
+            .padding(.trailing, 4)
+            .frame(height: 40)
+            .background(Theme.codeHeader)
+            Group {
+                if Prefs.shared.codeWrap {
+                    codeText
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(16)
+                } else {
+                    ScrollView(.horizontal) {
+                        codeText
+                            .fixedSize()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(16)
+                    }
                 }
             }
+            .background(Theme.codeBody)
         }
-        .background(Theme.codeBody, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.border1))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Theme.border1, lineWidth: 1))
+    }
+
+    private var codeText: some View {
+        Text(code)
+            .font(.system(size: 13.5, design: .monospaced))
+            .lineSpacing(4)
+            .foregroundStyle(Theme.fg1)
+            .textSelection(.enabled)
     }
 }
 

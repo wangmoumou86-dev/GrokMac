@@ -296,8 +296,12 @@ final class Speaker {
 
     func speakLast(in session: ChatSession) {
         guard let last = session.messages.last(where: { $0.role == .assistant && !$0.content.isEmpty && !$0.pending }) else { return }
+        speak(last.content)
+    }
+
+    func speak(_ text: String) {
         synth.stopSpeaking(at: .immediate)
-        let utterance = AVSpeechUtterance(string: String(last.content.prefix(500)))
+        let utterance = AVSpeechUtterance(string: String(text.prefix(500)))
         utterance.voice = AVSpeechSynthesisVoice(language: "zh-CN")
         synth.speak(utterance)
     }

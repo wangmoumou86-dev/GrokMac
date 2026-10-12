@@ -67,8 +67,9 @@ struct ToolCardView: View {
                 }
             }
         }
-        .padding(10)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.surface1, in: RoundedRectangle(cornerRadius: 8))
+        .background(Theme.surface1, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Theme.border2, lineWidth: 1))
     }
 }

@@ -30,14 +30,15 @@ struct ChatPane: View {
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 18) {
+                        LazyVStack(alignment: .leading, spacing: 24) {
                             ForEach(visible) { message in
                                 MessageRow(message: message)
                                     .id(message.id)
                             }
                         }
-                        .padding(24)
-                        .frame(maxWidth: 760)
+                        .padding(.vertical, 24)
+                        .padding(.horizontal, 24)
+                        .frame(maxWidth: Theme.contentWidth + 48)
                         .frame(maxWidth: .infinity)
                     }
                     .onChange(of: visible.last?.content) { _, _ in
@@ -263,7 +264,7 @@ private struct MessageRow: View {
             ToolCardView(tool: tool)
         } else if message.role == .user {
             HStack {
-                Spacer(minLength: 80)
+                Spacer(minLength: Theme.contentWidth * 0.3)
                 VStack(alignment: .leading, spacing: 4) {
                     if message.surface == .cli {
                         Text("来自终端")
@@ -289,14 +290,17 @@ private struct MessageRow: View {
                         }
                     }
                     Text(message.content)
+                        .font(.system(size: 15))
+                        .lineSpacing(7.5)
+                        .foregroundStyle(Theme.fg1)
                         .textSelection(.enabled)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(Theme.userBubble, in: RoundedRectangle(cornerRadius: 16))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Theme.userBubble, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
         } else {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 if let thought = message.reasoning, !thought.isEmpty {
                     ThinkingSection(text: thought, live: message.pending && message.content.isEmpty)
                 }
@@ -304,13 +308,16 @@ private struct MessageRow: View {
                     ProgressView().controlSize(.small)
                 } else {
                     MarkdownView(text: message.content)
-                        .foregroundStyle(message.error ? Theme.danger : Color.primary)
+                        .foregroundStyle(message.error ? Theme.danger : Theme.fg1)
                 }
                 if let path = message.video {
                     VideoCard(url: URL(fileURLWithPath: path))
                 }
                 if let links = message.citations, !links.isEmpty {
                     SourceList(links: links)
+                }
+                if !message.pending, !message.content.isEmpty {
+                    ReplyActions(text: message.content)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -345,30 +352,70 @@ private struct SourceList: View {
     var links: [String]
     @State private var expanded = false
 
+    private var urls: [URL] { links.compactMap { URL(string: $0) } }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("来源 · \(links.count)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            ForEach(Array(links.prefix(expanded ? links.count : 5).enumerated()), id: \.offset) { index, link in
-                if let url = URL(string: link) {
-                    Link(destination: url) {
-                        Text("\(index + 1). \(url.host() ?? link)\(url.path().count > 1 ? url.path() : "")")
-                            .font(.caption)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+        VStack(alignment: .leading, spacing: 6) {
+            Button { expanded.toggle() } label: {
+                HStack(spacing: 4) {
+                    HStack(spacing: -6) {
+                        ForEach(Array(urls.prefix(3).enumerated()), id: \.offset) { _, url in
+                            Favicon(host: url.host() ?? "")
+                        }
                     }
-                    .help(link)
+                    Text(tr("\(links.count) 个来源", "\(links.count) sources"))
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.fg1)
+                        .padding(.leading, 2)
                 }
+                .padding(.leading, 4)
+                .padding(.trailing, 8)
+                .frame(height: 31)
+                .background(Capsule().fill(Theme.surface1))
+                .overlay(Capsule().stroke(Theme.border1, lineWidth: 1))
+                .contentShape(Capsule())
             }
-            if links.count > 5 {
-                Button(expanded ? "收起" : "显示全部 \(links.count) 个来源") { expanded.toggle() }
-                    .buttonStyle(.plain)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            .buttonStyle(.plain)
+            .help(tr("显示来源", "Show sources"))
+            if expanded {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(urls.enumerated()), id: \.offset) { index, url in
+                        Link(destination: url) {
+                            HStack(spacing: 6) {
+                                Favicon(host: url.host() ?? "")
+                                Text("\(url.host() ?? url.absoluteString)\(url.path().count > 1 ? url.path() : "")")
+                                    .font(.system(size: 13))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                        }
+                        .foregroundStyle(Theme.fg2)
+                        .help(url.absoluteString)
+                    }
+                }
+                .padding(.leading, 4)
             }
         }
         .padding(.top, 4)
+    }
+}
+
+private struct Favicon: View {
+    var host: String
+
+    var body: some View {
+        AsyncImage(url: URL(string: "https://www.google.com/s2/favicons?sz=32&domain=\(host)")) { image in
+            image.resizable().scaledToFit()
+        } placeholder: {
+            Text(String(host.replacingOccurrences(of: "www.", with: "").prefix(1)).uppercased())
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(Theme.fg2)
+        }
+        .frame(width: 14, height: 14)
+        .clipShape(Circle())
+        .frame(width: 20, height: 20)
+        .background(Circle().fill(Theme.base))
+        .overlay(Circle().stroke(Theme.border1, lineWidth: 1))
     }
 }
 
@@ -377,30 +424,74 @@ private struct ThinkingSection: View {
     var live: Bool
     @State private var expanded: Bool? = nil
 
+    private var isOpen: Bool { expanded ?? live }
+
     var body: some View {
-        DisclosureGroup(isExpanded: Binding(get: { expanded ?? live }, set: { expanded = $0 })) {
-            ScrollView {
-                Text(text)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) { expanded = !isOpen }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(live ? tr("思考中…", "Thinking…") : tr("已思考", "Thought"))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .rotationEffect(.degrees(isOpen ? 90 : 0))
+                }
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.fg2)
+                .padding(.top, 12)
+                .frame(height: 36, alignment: .bottom)
+                .contentShape(Rectangle())
             }
-            .frame(maxHeight: 240)
-            .padding(.leading, 4)
-        } label: {
-            Label(live ? "思考中…" : "思考过程", systemImage: "brain")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+            .buttonStyle(.plain)
+            if isOpen {
+                ScrollView {
+                    Text(text)
+                        .font(.system(size: 14))
+                        .lineSpacing(4)
+                        .foregroundStyle(Theme.fg2)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 240)
+                .padding(.leading, 12)
+                .overlay(alignment: .leading) {
+                    Rectangle().fill(Theme.border2).frame(width: 2)
+                }
+            }
         }
-        .padding(10)
-        .background(Theme.surface1, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
-private func dataImage(_ url: String) -> NSImage? {
-    guard let comma = url.firstIndex(of: ","), let data = Data(base64Encoded: String(url[url.index(after: comma)...])) else { return nil }
-    return NSImage(data: data)
+private struct ReplyActions: View {
+    var text: String
+    @State private var copied = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+                copied = true
+                Task {
+                    try? await Task.sleep(for: .seconds(1.2))
+                    copied = false
+                }
+            } label: {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+            }
+            .buttonStyle(ComposerIconButtonStyle(size: 32))
+            .help(tr("复制回答", "Copy reply"))
+            Button {
+                Speaker.shared.speak(text)
+            } label: {
+                Image(systemName: "speaker.wave.2")
+            }
+            .buttonStyle(ComposerIconButtonStyle(size: 32))
+            .help(tr("朗读", "Read aloud"))
+        }
+        .padding(.leading, -6)
+    }
 }
 
 private struct AttachmentChip: View {
