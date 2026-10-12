@@ -141,6 +141,7 @@ enum GrokClient {
             "Commands run with /bin/bash as the user. You can read anywhere in their home folder and write there too; destructive commands and edits outside the working folder wait for the user's approval. Sandbox setting: \(sandbox). Approval: \(approval). Risky or networked commands wait for the user's approval.",
             "Never claim a command ran or a file changed unless a tool result says so. Keep tool output summaries short; the user already sees each command and its output in the chat.",
             "Use ask_user when you need a decision.",
+            "Do not run the same or an equivalent command twice (for example ls -la, ls -lah and ls -1A of one folder). Plan one command that gets what you need, and answer as soon as you have enough; most questions need one to three tool calls.",
             modeLine,
             tier.styleHint,
         ].joined(separator: " ")
@@ -229,8 +230,19 @@ enum GrokClient {
             await onEvent(.reasoning(heavyNotice))
         }
 
-        for _ in 0..<24 {
+        // Identical calls (same name and arguments) in this turn reuse the earlier result.
+        var seen: [String: String] = [:]
+        let maxToolRounds = 8
+        var round = 0
+        while round <= maxToolRounds {
+            round += 1
             if Task.isCancelled { return }
+            if round > maxToolRounds {
+                // Out of tool rounds: one more request without tools so the model answers with what it has.
+                input.append(["role": "user", "content": "已经调用了 \(maxToolRounds) 轮工具。不要再调用工具，直接根据已有结果回答。"])
+                _ = try? await turn(key: trimmed, model: model, effort: effort, input: input, tools: [], onEvent: onEvent)
+                return
+            }
             let output: [[String: Any]]
             do {
                 output = try await turn(key: trimmed, model: model, effort: effort, input: input, tools: tools, onEvent: onEvent)
@@ -241,6 +253,7 @@ enum GrokClient {
                 model = ReplyTier.expert.modelID
                 effort = ReplyTier.expert.effort
                 await onEvent(.reasoning(heavyNotice))
+                round -= 1
                 continue
             }
             input.append(contentsOf: output)
@@ -254,11 +267,26 @@ enum GrokClient {
                     name: item["name"] as? String ?? "",
                     arguments: item["arguments"] as? String ?? "{}"
                 )
-                let result = await execute(call, root: root, key: trimmed, mode: mode, sandbox: sandbox, approval: approval, onTool: onTool, onGate: onGate)
+                let signature = call.name + "\u{1F}" + canonicalArguments(call.arguments)
+                let result: String
+                if let previous = seen[signature] {
+                    result = "（与本轮之前的一次调用完全相同，没有重复执行，以下是上次的结果。请直接使用它。）\n" + previous
+                } else {
+                    result = await execute(call, root: root, key: trimmed, mode: mode, sandbox: sandbox, approval: approval, onTool: onTool, onGate: onGate)
+                    seen[signature] = result
+                }
                 input.append(["type": "function_call_output", "call_id": call.id, "output": result])
             }
         }
-        await onEvent(.text("\n\n这一轮的工具次数用完了。"))
+    }
+
+    /// Arguments JSON with sorted keys so key order does not defeat the duplicate check.
+    private static func canonicalArguments(_ raw: String) -> String {
+        guard let data = raw.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let sorted = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]),
+              let text = String(data: sorted, encoding: .utf8) else { return raw }
+        return text
     }
 
     private static let heavyNotice = "Heavy 多智能体模型调用本机工具需要 xAI 的 beta 权限，这一轮改用 Expert · grok-4.7。\n\n"
