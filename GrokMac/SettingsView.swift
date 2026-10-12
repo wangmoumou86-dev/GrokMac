@@ -37,7 +37,7 @@ struct SettingsView: View {
                     get: { model.useWorktree },
                     set: { model.setWorktree($0) }
                 ))
-                Text("默认和 Codex 一样：只在你选的文件夹里写，命令没有网络。要联网或在只读模式里改文件，才会停下来问。完全访问等于拆掉沙箱。")
+                Text("应用不再使用 App Sandbox。命令可以读写你的用户目录；删除、覆盖、改工程外文件或联网前会停下来问。完全访问去掉命令级的限制。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button("撤销上一次改动") { model.undoLastChange() }
@@ -46,7 +46,7 @@ struct SettingsView: View {
                 Text(model.projectLabel)
                     .font(.caption)
                     .textSelection(.enabled)
-                Text("对话里 Grok 运行的命令、读写和搜索都作用在这个文件夹。别的目录不会被改。没选时只能用应用自己的沙盒目录。")
+                Text("对话里 Grok 运行命令时以这个文件夹为当前目录，没选时用你的用户目录。它可以读写用户目录里的任何文件；删除、覆盖或改工程外文件前会先问你。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button("选择文件夹") { model.chooseProject() }

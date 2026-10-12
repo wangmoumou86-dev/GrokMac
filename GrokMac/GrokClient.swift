@@ -115,12 +115,12 @@ enum GrokClient {
         }
         let place = projectChosen
             ? "The working folder is the user's selected project: \(root.path)."
-            : "No project folder is selected, so the working folder is the app's own sandbox home: \(root.path). Tell the user to pick a project in Settings (⌘,) if they want you to work on their files."
+            : "No project folder is selected, so the working folder is the user's home folder: \(root.path)."
         return [
             "You are Grok, built by xAI, inside a native Mac app with a grok.com-style chat. Reply in the user's language. Use markdown when it helps.",
             "You CAN run shell commands and read and write files on the user's Mac through the bash, read_file, write_file, edit_file, apply_patch, glob and grep tools. Use them whenever the user asks about their Mac, files, code, or anything a command can answer, instead of guessing.",
             place,
-            "Commands run with /bin/bash inside the macOS app sandbox, so access outside the working folder may be refused. Sandbox setting: \(sandbox). Approval: \(approval). Risky or networked commands wait for the user's approval.",
+            "Commands run with /bin/bash as the user. You can read anywhere in their home folder and write there too; destructive commands and edits outside the working folder wait for the user's approval. Sandbox setting: \(sandbox). Approval: \(approval). Risky or networked commands wait for the user's approval.",
             "Never claim a command ran or a file changed unless a tool result says so. Keep tool output summaries short; the user already sees each command and its output in the chat.",
             "Use ask_user when you need a decision.",
             modeLine,
@@ -265,7 +265,7 @@ enum GrokClient {
             return output
         }
         let shown = displayInput(call)
-        if let reason = escalation(name: call.name, arguments: call.arguments, sandbox: sandbox, approval: approval) {
+        if let reason = escalation(name: call.name, arguments: call.arguments, root: root, sandbox: sandbox, approval: approval) {
             await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: "", status: "approval"))
             let answer = await onGate(reason, shown, "approve")
             if answer != "yes" {
@@ -300,11 +300,47 @@ enum GrokClient {
         return text.contains("git push") || text.contains("git pull") || text.contains("git fetch") || text.contains("git clone")
     }
 
-    private static func escalation(name: String, arguments: String, sandbox: String, approval: String) -> String? {
+    private static func isDestructive(_ command: String) -> Bool {
+        let text = " " + command.lowercased().replacingOccurrences(of: "\n", with: " ; ") + " "
+        let patterns = [
+            #"(^|[\s;&|(])(sudo\s+)?(rm|rmdir|unlink|shred|srm|mv|dd|mkfs\S*|diskutil|chmod|chown|chflags|truncate|killall|pkill|kill|launchctl|defaults\s+delete|osascript)\s"#,
+            #"git\s+(reset\s+--hard|clean\s+-\S*f|checkout\s+--\s|restore\s|push\s+.*(-f|--force)|branch\s+-D|stash\s+(drop|clear))"#,
+            #"(^|[^>])>\s*[~/]"#,
+            #"find\s.*-delete"#,
+            #"xargs\s+(rm|mv)"#,
+        ]
+        return patterns.contains { text.range(of: $0, options: .regularExpression) != nil }
+    }
+
+    private static func outsidePath(_ arguments: String, root: URL) -> String? {
+        let args = jsonObject(arguments)
+        var paths = [args["path"] as? String].compactMap { $0 }
+        if let patch = args["patch"] as? String {
+            for line in patch.split(separator: "\n") {
+                for marker in ["*** Add File: ", "*** Update File: ", "*** Delete File: "] where line.hasPrefix(marker) {
+                    paths.append(String(line.dropFirst(marker.count)).trimmingCharacters(in: .whitespaces))
+                }
+            }
+        }
+        let base = root.standardizedFileURL.path
+        for path in paths {
+            guard let url = try? LocalTools.resolve(root, path) else { continue }
+            if url.path != base, !url.path.hasPrefix(base + "/") { return url.path }
+        }
+        return nil
+    }
+
+    private static func escalation(name: String, arguments: String, root: URL, sandbox: String, approval: String) -> String? {
         let command = (jsonObject(arguments)["command"] as? String) ?? ""
         let writes = mutating.contains(name) || name == "todo_write" || name == "undo"
         if sandbox == "read-only", writes {
             return approval == "never" ? nil : "只读沙箱。允许这一次写出或执行？"
+        }
+        if approval != "never", (name == "bash" || name == "run_tests" || name == "open_pr"), isDestructive(command) {
+            return "这条命令可能删除或覆盖文件。允许执行？"
+        }
+        if approval != "never", ["write_file", "edit_file", "apply_patch"].contains(name), let outside = outsidePath(arguments, root: root) {
+            return "要改工程以外的文件：\(outside)。允许？"
         }
         if networked.contains(name) || ((name == "bash" || name == "run_tests") && needsNetwork(command)) {
             return approval == "never" ? nil : "需要联网。允许这一次？"

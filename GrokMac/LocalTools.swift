@@ -48,19 +48,23 @@ enum LocalTools {
         }
     }
 
-    private static func resolve(_ root: URL, _ rel: String) throws -> URL {
-        let cleaned = rel.replacingOccurrences(of: "\\", with: "/").replacingOccurrences(of: "\0", with: "")
+    /// Relative paths resolve against the working folder. Absolute and ~ paths may point anywhere in the
+    /// user's home folder; writes outside the project are approved first in GrokClient.escalation.
+    static func resolve(_ root: URL, _ rel: String) throws -> URL {
+        var cleaned = rel.replacingOccurrences(of: "\\", with: "/").replacingOccurrences(of: "\0", with: "")
+        if cleaned == "~" || cleaned.hasPrefix("~/") { cleaned = NSHomeDirectory() + cleaned.dropFirst() }
         let base = root.standardizedFileURL
         let target = URL(fileURLWithPath: cleaned.isEmpty ? "." : cleaned, relativeTo: base).standardizedFileURL
-        let rootPath = base.path
-        let path = target.path
-        guard path == rootPath || path.hasPrefix(rootPath + "/") else {
-            throw ToolFailure("只能访问这个工程里的文件。")
+        let allowed = [base.path, URL(fileURLWithPath: NSHomeDirectory()).standardizedFileURL.path]
+        func inside(_ path: String) -> Bool {
+            allowed.contains { path == $0 || path.hasPrefix($0 + "/") }
         }
-        if FileManager.default.fileExists(atPath: path) {
-            let real = target.resolvingSymlinksInPath().path
-            guard real == rootPath || real.hasPrefix(rootPath + "/") else {
-                throw ToolFailure("只能访问这个工程里的文件。")
+        guard inside(target.path) else {
+            throw ToolFailure("只能访问你的用户目录里的文件。")
+        }
+        if FileManager.default.fileExists(atPath: target.path) {
+            guard inside(target.resolvingSymlinksInPath().path) else {
+                throw ToolFailure("只能访问你的用户目录里的文件。")
             }
         }
         return target
@@ -182,8 +186,8 @@ enum LocalTools {
                     let files = access == "read-only"
                         ? "(allow file-read*) (deny file-write*)"
                         : """
-                        (allow file-read* file-write* (subpath "\(root.path)"))
-                        (allow file-read* (subpath "/usr") (subpath "/bin") (subpath "/opt") (subpath "/Library") (subpath "/System") (subpath "/Applications"))
+                        (allow file-read*)
+                        (allow file-write* (subpath "\(root.path)") (subpath "\(NSHomeDirectory())") (subpath "/private/tmp") (subpath "/private/var/folders") (literal "/dev/null"))
                         """
                     let profile = """
                     (version 1)
