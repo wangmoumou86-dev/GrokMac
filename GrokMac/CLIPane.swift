@@ -29,12 +29,12 @@ struct CLIPane: View {
                     if model.active.messages.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Grok Build")
-                            Text("Mac · 与这条对话相连")
+                            Text("会改你选中的工程")
                                 .foregroundStyle(.secondary)
-                            Text("输入任务，或 /help")
+                            Text("bash · 读写文件 · grep · 搜索 · 打开链接")
                                 .padding(.top, 8)
                                 .foregroundStyle(.secondary)
-                            Text("Shift+Tab 切换模式")
+                            Text("先在设置里选择文件夹")
                                 .foregroundStyle(.secondary)
                         }
                         .font(.system(.body, design: .monospaced))
@@ -151,6 +151,10 @@ private struct CLILine: View {
             } else {
                 MarkdownView(text: message.content)
                     .foregroundStyle(message.error ? Color(red: 0.88, green: 0.36, blue: 0.39) : Color.primary)
+            }
+        case .tool:
+            if let tool = message.tool {
+                ToolCardView(tool: tool)
             }
         }
     }

@@ -141,7 +141,9 @@ private struct MessageRow: View {
     var message: ChatMessage
 
     var body: some View {
-        if message.role == .user {
+        if message.role == .tool, let tool = message.tool {
+            ToolCardView(tool: tool)
+        } else if message.role == .user {
             HStack {
                 Spacer(minLength: 80)
                 VStack(alignment: .leading, spacing: 4) {

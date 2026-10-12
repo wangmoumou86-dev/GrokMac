@@ -63,7 +63,15 @@ enum ChatSurface: String, Codable {
 }
 
 enum ChatRole: String, Codable {
-    case user, assistant, meta
+    case user, assistant, meta, tool
+}
+
+struct ToolTrace: Codable, Equatable, Hashable {
+    var id: String
+    var name: String
+    var input: String
+    var output: String
+    var status: String
 }
 
 struct ChatMessage: Identifiable, Codable, Equatable {
@@ -74,6 +82,7 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     var createdAt: Date
     var pending: Bool
     var error: Bool
+    var tool: ToolTrace?
 
     init(
         id: UUID = UUID(),
@@ -82,7 +91,8 @@ struct ChatMessage: Identifiable, Codable, Equatable {
         surface: ChatSurface,
         createdAt: Date = .now,
         pending: Bool = false,
-        error: Bool = false
+        error: Bool = false,
+        tool: ToolTrace? = nil
     ) {
         self.id = id
         self.role = role
@@ -91,6 +101,7 @@ struct ChatMessage: Identifiable, Codable, Equatable {
         self.createdAt = createdAt
         self.pending = pending
         self.error = error
+        self.tool = tool
     }
 }
 
@@ -126,6 +137,7 @@ let commandHelp = """
 /rename      重命名，例如 /rename 发布说明
 /compact     丢掉较早的消息
 /quit        退出应用
+/project     当前工程文件夹
 
 快捷键
 ⌘N           新对话
@@ -154,6 +166,7 @@ let slashCatalog: [SlashCommand] = [
     .init(name: "/rename", hint: "重命名当前对话"),
     .init(name: "/compact", hint: "压缩较早消息"),
     .init(name: "/quit", hint: "退出应用"),
+    .init(name: "/project", hint: "当前工程文件夹"),
 ]
 
 func slashSuggestions(_ input: String) -> [SlashCommand] {

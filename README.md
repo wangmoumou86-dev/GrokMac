@@ -23,6 +23,8 @@
 - 系统窗口、侧栏会话、检查器里的终端
 - 斜杠命令（`/help`、`/model`、`/mode`、`/new` 等），终端里 Shift+Tab 切换模式
 - 流式调用 `grok-4.5`。Fast / Auto / Expert 是回答长短，不是不同的模型
+- 右边终端是工具代理，和 Codex / Claude Code 一样可以自己调用 bash、读写文件、grep、网页搜索、打开链接、记任务、生成图片
+- 先用 ⌘, 选择工程文件夹。工具只会改那个目录
 - 对话存在 `~/Library/Application Support/GrokMac/sessions.json`
 
-应用不能读写你的磁盘，也不会替你执行命令。终端里给出的改动都只是建议。
+左边的普通对话不会改文件。要它动手，用右边的终端。

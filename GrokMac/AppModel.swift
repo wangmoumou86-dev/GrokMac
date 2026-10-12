@@ -13,6 +13,7 @@ final class AppModel {
     var busy = false
     var showPalette = false
     var needsKey = false
+    var projectLabel = ProjectStore.label()
 
     private var chatTask: Task<Void, Never>?
     private var saveTask: Task<Void, Never>?
@@ -95,6 +96,22 @@ final class AppModel {
         deliver(text, surface: surface)
     }
 
+    func chooseProject() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.prompt = "选择工程"
+        panel.message = "工具只会读写这个文件夹。"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try ProjectStore.save(url)
+            projectLabel = url.path
+        } catch {
+            projectLabel = "没能记住这个文件夹"
+        }
+    }
+
     private func interpret(_ raw: String) -> CommandOutcome {
         let parts = raw.dropFirst().split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
         let cmd = parts.first.map(String.init)?.lowercased() ?? ""
@@ -153,6 +170,8 @@ final class AppModel {
         case "quit", "exit":
             NSApplication.shared.terminate(nil)
             return .done
+        case "project", "folder":
+            return done("当前工程\n\(projectLabel)\n在设置（⌘,）里更换。工具只会改这个文件夹。")
         default:
             return done("未知命令 /\(cmd)。输入 /help 查看。")
         }
@@ -186,6 +205,10 @@ final class AppModel {
         chatTask?.cancel()
         chatTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            if surface == .cli {
+                await self.runTools(sessionID: sessionID, messageID: assistantID, history: history, key: key)
+                return
+            }
             var acc = ""
             do {
                 try await GrokClient.stream(
@@ -218,6 +241,59 @@ final class AppModel {
             }
             self.busy = false
         }
+    }
+
+    private func runTools(sessionID: UUID, messageID: UUID, history: [ChatMessage], key: String) async {
+        guard let access = ProjectAccess.open() else {
+            finish(sessionID: sessionID, messageID: messageID, content: "先在设置（⌘,）里选择工程文件夹。终端里的工具只会改那个目录。", error: true)
+            busy = false
+            return
+        }
+        defer { access.close() }
+        var acc = ""
+        do {
+            try await GrokClient.runAgent(key: key, history: history, root: access.root) { trace in
+                self.upsertTool(sessionID: sessionID, before: messageID, trace: trace)
+            } onDelta: { chunk in
+                acc += chunk
+                self.replaceAssistant(sessionID: sessionID, messageID: messageID, content: acc, pending: true, error: false)
+            }
+            if Task.isCancelled {
+                finish(sessionID: sessionID, messageID: messageID, content: acc.isEmpty ? "已停止。" : acc, error: false)
+            } else if acc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                finish(sessionID: sessionID, messageID: messageID, content: "做完了。", error: false)
+            } else {
+                finish(sessionID: sessionID, messageID: messageID, content: acc, error: false)
+            }
+        } catch {
+            let cancelled = error is CancellationError || (error as? URLError)?.code == .cancelled
+            if cancelled {
+                finish(sessionID: sessionID, messageID: messageID, content: acc.isEmpty ? "已停止。" : acc, error: false)
+            } else {
+                let message = (error as? LocalizedError)?.errorDescription ?? "Grok 没有完成。"
+                finish(sessionID: sessionID, messageID: messageID, content: acc.isEmpty ? message : acc + "\n\n" + message, error: true)
+                if key.isEmpty { needsKey = true }
+            }
+        }
+        busy = false
+    }
+
+    private func upsertTool(sessionID: UUID, before messageID: UUID, trace: ToolTrace) {
+        guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
+        var session = sessions[index]
+        if let existing = session.messages.firstIndex(where: { $0.tool?.id == trace.id }) {
+            session.messages[existing].tool = trace
+            session.messages[existing].content = trace.output.isEmpty ? trace.input : trace.output
+        } else {
+            let card = ChatMessage(role: .tool, content: trace.input, surface: .cli, tool: trace)
+            if let at = session.messages.firstIndex(where: { $0.id == messageID }) {
+                session.messages.insert(card, at: at)
+            } else {
+                session.messages.append(card)
+            }
+        }
+        session.updatedAt = .now
+        sessions[index] = session
     }
 
     private func finish(sessionID: UUID, messageID: UUID, content: String, error: Bool) {

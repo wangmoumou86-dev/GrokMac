@@ -8,6 +8,15 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section("工程文件夹") {
+                Text(model.projectLabel)
+                    .font(.caption)
+                    .textSelection(.enabled)
+                Text("终端里的 bash、读写和搜索都作用在这个文件夹。别的目录不会被改。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("选择文件夹") { model.chooseProject() }
+            }
             Section("xAI API Key") {
                 SecureField("xai-…", text: $key)
                 Text("只保存在这台 Mac 的钥匙串。到 console.x.ai 创建。")
@@ -27,7 +36,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 220)
+        .frame(width: 460, height: 340)
         .padding()
         .onChange(of: key) { _, _ in saved = false }
     }
