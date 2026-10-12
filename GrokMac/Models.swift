@@ -214,7 +214,7 @@ let commandHelp = """
 ⌘N           新对话
 ⌘J           终端
 ⌘K           命令面板
-⌘,           填写 API Key
+⌘,           设置
 Shift+Tab    在终端里切换模式
 """
 

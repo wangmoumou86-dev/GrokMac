@@ -20,7 +20,7 @@ final class AppModel {
     var activeBotID: UUID?
     var busy = false
     var showPalette = false
-    var needsKey = false
+    var showLogin = true
     var projectLabel = ProjectStore.label()
     var autoRun = false
     var allowNetwork = true
@@ -63,7 +63,7 @@ final class AppModel {
             approvalPolicy = extra.approvalPolicy ?? "on-request"
             useWorktree = extra.useWorktree ?? false
         }
-        needsKey = KeychainStore.load().isEmpty
+        showLogin = true
     }
 
     var active: ChatSession {
@@ -278,7 +278,6 @@ final class AppModel {
                     let message = (error as? LocalizedError)?.errorDescription ?? "Grok 没有完成回答。"
                     let combined = acc.isEmpty ? message : acc + "\n\n" + message
                     self.finish(sessionID: sessionID, messageID: assistantID, content: combined, error: true)
-                    if key.isEmpty { self.needsKey = true }
                 }
             }
             self.busy = false
@@ -292,7 +291,6 @@ final class AppModel {
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? "没有生成图片。"
             finish(sessionID: sessionID, messageID: messageID, content: message, error: true)
-            if key.isEmpty { needsKey = true }
         }
         busy = false
     }
@@ -348,7 +346,6 @@ final class AppModel {
             } else {
                 let message = (error as? LocalizedError)?.errorDescription ?? "Grok 没有完成。"
                 finish(sessionID: sessionID, messageID: messageID, content: acc.isEmpty ? message : acc + "\n\n" + message, error: true)
-                if key.isEmpty { needsKey = true }
             }
         }
         busy = false

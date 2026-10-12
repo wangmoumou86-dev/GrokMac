@@ -23,8 +23,10 @@ struct RootView: View {
         .sheet(isPresented: $model.showPalette) {
             PaletteSheet()
         }
-        .sheet(isPresented: $model.needsKey) {
-            KeyPrompt()
+        .overlay {
+            if model.showLogin {
+                LoginGate()
+            }
         }
         .safeAreaInset(edge: .bottom) {
             if !model.gateTitle.isEmpty {
@@ -79,7 +81,7 @@ private struct PaletteSheet: View {
     @State private var query = ""
 
     private var items: [String] {
-        let all = ["新对话", "显示终端", "Fast", "Auto", "Expert", "代码模式", "计划模式", "提问模式", "设置 API Key"]
+        let all = ["新对话", "显示终端", "Fast", "Auto", "Expert", "代码模式", "计划模式", "提问模式", "登录"]
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         guard !q.isEmpty else { return all }
         return all.filter { $0.lowercased().contains(q) }
@@ -111,41 +113,38 @@ private struct PaletteSheet: View {
         case "代码模式": model.mode = .code
         case "计划模式": model.mode = .plan
         case "提问模式": model.mode = .ask
-        case "设置 API Key":
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        case "登录":
+            model.showLogin = true
         default: break
         }
         dismiss()
     }
 }
 
-private struct KeyPrompt: View {
+private struct LoginGate: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-    @State private var key = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("连接 Grok")
-                .font(.title2)
-            Text("把你自己的 xAI API Key 存在这台 Mac 的钥匙串里。它不会写进工程，也不会上传到别处。")
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            SecureField("xai-…", text: $key)
-                .textFieldStyle(.roundedBorder)
-            HStack {
-                Spacer()
-                Button("稍后") { dismiss() }
-                Button("保存") {
-                    KeychainStore.save(key)
-                    model.needsKey = KeychainStore.load().isEmpty
-                    dismiss()
+        ZStack {
+            Color.black.opacity(0.94).ignoresSafeArea()
+            VStack(spacing: 16) {
+                Text("Grok")
+                    .font(.system(size: 40, weight: .medium))
+                Text("用 X、Google 或 Apple 登录")
+                    .foregroundStyle(.secondary)
+                Button("登录") {
+                    LoginSession.shared.start()
+                    model.showLogin = false
                 }
-                .keyboardShortcut(.defaultAction)
-                .disabled(key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                Button("暂时跳过") {
+                    model.showLogin = false
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
             }
+            .padding(32)
         }
-        .padding(20)
-        .frame(width: 440)
     }
 }

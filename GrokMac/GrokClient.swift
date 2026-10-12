@@ -7,7 +7,7 @@ enum GrokClientError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingKey:
-            "还没有 API Key。用 ⌘, 填入你自己的 xAI Key，它只保存在这台 Mac 的钥匙串里。"
+            "先登录，或点暂时跳过。这个应用不再要 API Key。"
         case .badStatus(_, let message):
             message
         }
@@ -95,7 +95,7 @@ enum GrokClient {
 
     private static func friendly(_ status: Int, _ data: Data) -> String {
         if status == 429 { return "额度或频率受限，请稍后再试。" }
-        if status == 401 || status == 403 { return "Key 没有通过验证。打开设置（⌘,）检查 xAI API Key。" }
+        if status == 401 || status == 403 { return "账号没有通过。再点一次登录。" }
         var detail = ""
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             if let text = json["error"] as? String {
