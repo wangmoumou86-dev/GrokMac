@@ -21,6 +21,7 @@ final class AppModel {
     var busy = false
     var showPalette = false
     var showLogin = true
+    var signedIn = !KeychainStore.load().isEmpty
     var loginWaiting = false
     var loginFailed = false
     var projectLabel = ProjectStore.label()
@@ -65,7 +66,8 @@ final class AppModel {
             approvalPolicy = extra.approvalPolicy ?? "on-request"
             useWorktree = extra.useWorktree ?? false
         }
-        showLogin = true
+        showLogin = !signedIn
+        if signedIn { clearLoginErrors() }
     }
 
     /// Every 登录 entry point goes through here so the paste field always shows.
@@ -91,8 +93,27 @@ final class AppModel {
         loginFailed = false
     }
 
+    func signOut() {
+        KeychainStore.save("")
+        signedIn = false
+        beginLogin()
+    }
+
+    /// Drops old "no key / please log in" error bubbles once a login works.
+    private func clearLoginErrors() {
+        for index in sessions.indices {
+            let before = sessions[index].messages.count
+            sessions[index].messages.removeAll { message in
+                message.error && (message.content.contains("API Key") || message.content.contains("先登录"))
+            }
+            if sessions[index].messages.count != before { scheduleSave() }
+        }
+    }
+
     private func loginFinished(_ ok: Bool) {
         if ok {
+            signedIn = true
+            clearLoginErrors()
             skipLogin()
         } else {
             loginFailed = true

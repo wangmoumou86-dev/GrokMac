@@ -87,19 +87,37 @@ struct SidebarView: View {
             }
             .searchable(text: $query, placement: .sidebar, prompt: "搜索")
             Divider()
-            Button {
-                model.beginLogin()
-            } label: {
-                Label("登录", systemImage: "person.crop.circle")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 8)
-                    .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+            Group {
+                if model.signedIn {
+                    Menu {
+                        Button("重新登录") { model.beginLogin() }
+                        Button("退出登录", role: .destructive) { model.signOut() }
+                    } label: {
+                        Label("已登录 Grok", systemImage: "person.crop.circle.badge.checkmark")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 8)
+                            .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+                    }
+                    .menuStyle(.button)
+                    .menuIndicator(.hidden)
+                    .help("已用 xAI 账号登录")
+                } else {
+                    Button {
+                        model.beginLogin()
+                    } label: {
+                        Label("登录", systemImage: "person.crop.circle")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 8)
+                            .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+                    }
+                    .help("打开 accounts.x.ai 的官方登录")
+                }
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 12)
             .padding(.top, 10)
-            .help("打开 accounts.x.ai 的官方登录")
             Button {
                 model.place = .hub
                 model.hubTab = "connectors"
