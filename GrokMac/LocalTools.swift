@@ -136,22 +136,29 @@ enum LocalTools {
         }
     }
 
-    static func makeWorktree(root: URL) -> URL? {
-        let id = String(UUID().uuidString.prefix(8))
+    /// One worktree per conversation: the same session id maps to the same folder and branch, so later
+    /// messages keep building on the earlier changes instead of starting a fresh worktree each time.
+    static func makeWorktree(root: URL, session: UUID) -> URL? {
+        let id = String(session.uuidString.prefix(8))
         let dest = root.appendingPathComponent(".grok/worktrees/\(id)", isDirectory: true)
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["worktree", "add", "-b", "grok/\(id)", dest.path]
-        process.currentDirectoryURL = root
-        process.standardOutput = Pipe()
-        process.standardError = Pipe()
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            return nil
+        if FileManager.default.fileExists(atPath: dest.appendingPathComponent(".git").path) { return dest }
+        // New branch first; if the branch survived a removed folder, check it out again instead.
+        for args in [["worktree", "add", "-b", "grok/\(id)", dest.path], ["worktree", "add", dest.path, "grok/\(id)"]] {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+            process.arguments = args
+            process.currentDirectoryURL = root
+            process.standardOutput = Pipe()
+            process.standardError = Pipe()
+            do {
+                try process.run()
+                process.waitUntilExit()
+            } catch {
+                return nil
+            }
+            if process.terminationStatus == 0 { return dest }
         }
-        return process.terminationStatus == 0 ? dest : nil
+        return nil
     }
 
     private static func bash(root: URL, command: String, access: String) async -> (String, Bool) {

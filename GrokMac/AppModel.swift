@@ -467,7 +467,7 @@ final class AppModel {
         defer { access?.close() }
         var root = access?.root ?? FileManager.default.homeDirectoryForCurrentUser
         if let access, useWorktree {
-            guard let made = LocalTools.makeWorktree(root: access.root) else {
+            guard let made = LocalTools.makeWorktree(root: access.root, session: sessionID) else {
                 finish(sessionID: sessionID, messageID: messageID, content: "没能建 Git worktree。这个文件夹得是一个 Git 仓库。", error: true)
                 busy = false
                 return

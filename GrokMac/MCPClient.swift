@@ -68,12 +68,26 @@ final class MCPConnection: @unchecked Sendable {
                 tools.append(MCPTool(
                     server: config.name, name: name,
                     description: (raw["description"] as? String) ?? "",
-                    schema: raw["inputSchema"] as? [String: Any] ?? ["type": "object", "properties": [:] as [String: Any]],
+                    schema: MCPConnection.sanitize(raw["inputSchema"] as? [String: Any] ?? ["type": "object", "properties": [:] as [String: Any]]) as? [String: Any] ?? [:],
                     readOnly: hints["readOnlyHint"] as? Bool ?? false))
             }
             cursor = result["nextCursor"] as? String
         } while cursor != nil && !(cursor ?? "").isEmpty
         return tools
+    }
+
+    /// Drops JSON-schema `format` values the model API does not know (Rust servers emit uint, uint64, double…).
+    static func sanitize(_ value: Any) -> Any {
+        if let dict = value as? [String: Any] {
+            var out: [String: Any] = [:]
+            for (k, v) in dict {
+                if k == "format", let f = v as? String, !["date-time", "date", "time", "email", "uri", "uuid"].contains(f) { continue }
+                out[k] = sanitize(v)
+            }
+            return out
+        }
+        if let list = value as? [Any] { return list.map(sanitize) }
+        return value
     }
 
     func call(_ name: String, arguments: [String: Any]) async throws -> [String: Any] {
