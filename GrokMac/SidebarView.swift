@@ -68,7 +68,7 @@ struct SidebarView: View {
                                     .padding(.vertical, 4)
                                     .padding(.horizontal, 6)
                                     .background(
-                                        session.id == model.activeID ? Color.white.opacity(0.08) : Color.clear,
+                                        session.id == model.activeID ? Theme.surface2 : Color.clear,
                                         in: RoundedRectangle(cornerRadius: 6)
                                     )
                             }
@@ -92,7 +92,7 @@ struct SidebarView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 6)
                             .padding(.horizontal, 8)
-                            .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+                            .background(Theme.surface2, in: RoundedRectangle(cornerRadius: 8))
                     }
                     .menuStyle(.button)
                     .menuIndicator(.hidden)
@@ -105,7 +105,7 @@ struct SidebarView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 6)
                             .padding(.horizontal, 8)
-                            .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+                            .background(Theme.surface2, in: RoundedRectangle(cornerRadius: 8))
                     }
                     .help("打开 accounts.x.ai 的官方登录")
                 }
@@ -143,7 +143,7 @@ struct SidebarView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 4)
                 .padding(.horizontal, 6)
-                .background(model.place == place ? Color.white.opacity(0.08) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+                .background(model.place == place ? Theme.surface2 : Color.clear, in: RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
     }

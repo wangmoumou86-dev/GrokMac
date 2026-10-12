@@ -56,6 +56,7 @@ struct ChatPane: View {
                 }
             }
         }
+        .background(Theme.base)
         .navigationTitle(model.active.title)
         .toolbar {
             ToolbarItemGroup {
@@ -184,8 +185,8 @@ struct ChatPane: View {
                     Image(systemName: model.busy ? "stop.fill" : "arrow.up")
                         .font(.body.weight(.semibold))
                         .frame(width: 28, height: 28)
-                        .background(Circle().fill(canSend || model.busy ? Color.white : Color.white.opacity(0.12)))
-                        .foregroundStyle(canSend || model.busy ? Color.black : Color.white.opacity(0.4))
+                        .background(Circle().fill(canSend || model.busy ? Theme.buttonFilled : Theme.buttonDisabled))
+                        .foregroundStyle(canSend || model.busy ? Theme.buttonFilledFg : Theme.fg3)
                 }
                 .buttonStyle(.plain)
                 .disabled(!canSend && !model.busy)
@@ -193,8 +194,8 @@ struct ChatPane: View {
             }
         }
         .padding(12)
-        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(dropping ? Color.accentColor : Color.white.opacity(0.12)))
+        .background(Theme.composer, in: RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(dropping ? Color.accentColor : Theme.composerBorder))
         .onDrop(of: [.fileURL], isTargeted: $dropping) { providers in
             guard model.place != .imagine else { return false }
             for provider in providers {
@@ -276,7 +277,7 @@ private struct MessageRow: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+                .background(Theme.userBubble, in: RoundedRectangle(cornerRadius: 16))
             }
         } else {
             VStack(alignment: .leading, spacing: 6) {
@@ -287,7 +288,7 @@ private struct MessageRow: View {
                     ProgressView().controlSize(.small)
                 } else {
                     MarkdownView(text: message.content)
-                        .foregroundStyle(message.error ? Color(red: 0.88, green: 0.36, blue: 0.39) : Color.primary)
+                        .foregroundStyle(message.error ? Theme.danger : Color.primary)
                 }
                 if let path = message.video {
                     VideoCard(url: URL(fileURLWithPath: path))
@@ -313,7 +314,7 @@ private struct SearchToggle: View {
                 .font(.callout)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Capsule().fill(on ? Color.accentColor.opacity(0.25) : Color.white.opacity(0.06)))
+                .background(Capsule().fill(on ? Color.accentColor.opacity(0.25) : Theme.surface2))
                 .foregroundStyle(on ? Color.primary : Color.secondary)
         }
         .buttonStyle(.plain)
@@ -373,7 +374,7 @@ private struct ThinkingSection: View {
                 .foregroundStyle(.secondary)
         }
         .padding(10)
-        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+        .background(Theme.surface1, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -415,7 +416,7 @@ private struct AttachmentChip: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(Capsule().fill(Color.white.opacity(0.08)))
+        .background(Capsule().fill(Theme.surface2))
     }
 }
 

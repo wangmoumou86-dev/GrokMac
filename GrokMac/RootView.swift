@@ -123,7 +123,7 @@ private struct LoginGate: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.94).ignoresSafeArea()
+            Theme.scrim.ignoresSafeArea()
             VStack(spacing: 16) {
                 Image("GrokMark")
                     .resizable()

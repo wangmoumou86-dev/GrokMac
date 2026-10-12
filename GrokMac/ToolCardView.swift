@@ -45,7 +45,7 @@ struct ToolCardView: View {
                     }
                     Text(statusText)
                         .font(.caption)
-                        .foregroundStyle(tool.status == "error" ? Color(red: 0.88, green: 0.36, blue: 0.39) : .secondary)
+                        .foregroundStyle(tool.status == "error" ? Theme.danger : .secondary)
                 }
                 .contentShape(Rectangle())
             }
@@ -69,6 +69,6 @@ struct ToolCardView: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+        .background(Theme.surface1, in: RoundedRectangle(cornerRadius: 8))
     }
 }

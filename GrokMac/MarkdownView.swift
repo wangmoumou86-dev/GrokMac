@@ -66,8 +66,8 @@ private struct CodeBlock: View {
                 }
             }
         }
-        .background(Color.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.12)))
+        .background(Theme.codeBody, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.border1))
     }
 }
 
