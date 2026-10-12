@@ -19,6 +19,9 @@ struct SettingsView: View {
                 .tabItem { Label(tr("账号与工具", "Account & tools"), systemImage: "terminal") }
         }
         .frame(width: 560, height: 560)
+        .background(Theme.base.ignoresSafeArea())
+        .tint(Theme.link)
+        .foregroundStyle(Theme.fg1)
     }
 
     private var accountForm: some View {
@@ -69,7 +72,7 @@ struct SettingsView: View {
                 Button("选择文件夹") { model.chooseProject() }
             }
         }
-        .formStyle(.grouped)
+        .warmForm()
     }
 }
 
@@ -108,7 +111,7 @@ private struct GeneralSettings: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
+        .warmForm()
     }
 }
 
@@ -193,7 +196,7 @@ private struct PersonalSettings: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
+        .warmForm()
     }
 
     private func addMemory() {
@@ -230,7 +233,7 @@ private struct VoiceSettings: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
+        .warmForm()
         .task { await loadVoices() }
     }
 
@@ -277,7 +280,7 @@ private struct DataSettings: View {
                     .font(Theme.ui(11))
             }
         }
-        .formStyle(.grouped)
+        .warmForm()
         .confirmationDialog(tr("删除全部对话？", "Delete all conversations?"), isPresented: $confirmDelete) {
             Button(tr("删除", "Delete"), role: .destructive) {
                 model.deleteAllConversations()
@@ -304,5 +307,16 @@ final class Speaker {
         let utterance = AVSpeechUtterance(string: String(text.prefix(500)))
         utterance.voice = AVSpeechSynthesisVoice(language: "zh-CN")
         synth.speak(utterance)
+    }
+}
+
+extension View {
+    /// Grouped settings form on the app's warm-gray Theme: page in Theme.base, row groups in
+    /// Theme.surface1 with a Theme.border1 hairline, Inter text, link-blue controls.
+    func warmForm() -> some View {
+        formStyle(.grouped)
+            .scrollContentBackground(.hidden)
+            .background(Theme.base)
+            .environment(\.defaultMinListRowHeight, 36)
     }
 }
