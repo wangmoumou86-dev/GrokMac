@@ -328,8 +328,8 @@ final class AppModel {
                         self.replaceAssistant(sessionID: sessionID, messageID: assistantID, content: acc, pending: true, error: false)
                     case .citations(let links):
                         self.updateMessage(sessionID: sessionID, messageID: assistantID) { $0.citations = links }
-                    case .reasoning:
-                        break
+                    case .reasoning(let chunk):
+                        self.updateMessage(sessionID: sessionID, messageID: assistantID) { $0.reasoning = ($0.reasoning ?? "") + chunk }
                     }
                 }
                 if Task.isCancelled {

@@ -176,6 +176,9 @@ private struct MessageRow: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 6) {
+                if let thought = message.reasoning, !thought.isEmpty {
+                    ThinkingSection(text: thought, live: message.pending && message.content.isEmpty)
+                }
                 if message.pending, message.content.isEmpty {
                     ProgressView().controlSize(.small)
                 } else {
@@ -238,5 +241,31 @@ private struct SourceList: View {
             }
         }
         .padding(.top, 4)
+    }
+}
+
+private struct ThinkingSection: View {
+    var text: String
+    var live: Bool
+    @State private var expanded: Bool? = nil
+
+    var body: some View {
+        DisclosureGroup(isExpanded: Binding(get: { expanded ?? live }, set: { expanded = $0 })) {
+            ScrollView {
+                Text(text)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 240)
+            .padding(.leading, 4)
+        } label: {
+            Label(live ? "思考中…" : "思考过程", systemImage: "brain")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        .padding(10)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
     }
 }
