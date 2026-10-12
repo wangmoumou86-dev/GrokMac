@@ -186,10 +186,7 @@ final class MCPConnection: @unchecked Sendable {
     }
 
     private func request(_ method: String, _ params: [String: Any], timeout: Double) async throws -> [String: Any] {
-        lock.lock()
-        let id = nextID
-        nextID += 1
-        lock.unlock()
+        let id = allocateID()
         let message: [String: Any] = ["jsonrpc": "2.0", "id": id, "method": method, "params": params]
         if config.isHTTP {
             guard let reply = try await post(message, expectID: id) else { throw MCPError.message("服务器没有返回结果。") }
@@ -199,29 +196,37 @@ final class MCPConnection: @unchecked Sendable {
         return try await withThrowingTaskGroup(of: [String: Any].self) { group in
             group.addTask {
                 try await withCheckedThrowingContinuation { continuation in
-                    self.lock.lock()
-                    self.waiting[id] = continuation
-                    self.lock.unlock()
+                    self.park(id, continuation)
                     do { try self.write(message) } catch {
-                        self.lock.lock()
-                        let waiter = self.waiting.removeValue(forKey: id)
-                        self.lock.unlock()
-                        waiter?.resume(throwing: error)
+                        self.take(id)?.resume(throwing: error)
                     }
                 }
             }
             group.addTask {
                 try await Task.sleep(for: .seconds(timeout))
-                self.lock.lock()
-                let waiter = self.waiting.removeValue(forKey: id)
-                self.lock.unlock()
-                waiter?.resume(throwing: MCPError.message("\(method) 超时（\(Int(timeout)) 秒）。"))
+                self.take(id)?.resume(throwing: MCPError.message("\(method) 超时（\(Int(timeout)) 秒）。"))
                 throw MCPError.message("\(method) 超时。")
             }
             let first = try await group.next()!
             group.cancelAll()
             return first
         }
+    }
+
+    private func allocateID() -> Int {
+        lock.lock(); defer { lock.unlock() }
+        nextID += 1
+        return nextID - 1
+    }
+
+    private func park(_ id: Int, _ waiter: CheckedContinuation<[String: Any], Error>) {
+        lock.lock(); defer { lock.unlock() }
+        waiting[id] = waiter
+    }
+
+    private func take(_ id: Int) -> CheckedContinuation<[String: Any], Error>? {
+        lock.lock(); defer { lock.unlock() }
+        return waiting.removeValue(forKey: id)
     }
 
     // MARK: streamable HTTP
