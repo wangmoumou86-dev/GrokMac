@@ -10,8 +10,8 @@ final class AppModel {
     @ObservationIgnored private let migrated: Void = SandboxMigration.run()
     var sessions: [ChatSession]
     var activeID: UUID
-    var tier: ReplyTier
-    var mode: AgentMode
+    var tier: ReplyTier { didSet { scheduleSave() } }
+    var mode: AgentMode { didSet { scheduleSave() } }
     var place: AppPlace = .chat {
         didSet { if place != .imagine { imagineVideo = false } }
     }
@@ -687,13 +687,19 @@ final class AppModel {
     }
 
     func dueAutomation() {
-        guard !busy, let index = automations.firstIndex(where: { $0.enabled && Date().timeIntervalSince($0.lastRun) >= Double($0.everyHours) * 3600 }) else { return }
+        guard !busy, let item = automations.first(where: { $0.enabled && Date().timeIntervalSince($0.lastRun) >= Double($0.everyHours) * 3600 }) else { return }
+        runAutomation(item.id)
+    }
+
+    /// Runs one automation now in a fresh conversation, so it never lands in the chat the user is reading.
+    func runAutomation(_ id: UUID) {
+        guard !busy, let index = automations.firstIndex(where: { $0.id == id }) else { return }
         let prompt = automations[index].prompt
         automations[index].lastRun = .now
-        place = .chat
-        scheduleSave()
+        newSession()
         send(prompt, surface: .web)
     }
+
 
     private static func load() -> Persisted? {
         guard let data = try? Data(contentsOf: storeURL()) else { return nil }

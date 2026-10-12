@@ -28,7 +28,7 @@ private struct LibraryPage: View {
     var body: some View {
         let items = model.sessions.flatMap { session in
             session.messages.compactMap { message -> (UUID, String, String)? in
-                guard let range = message.content.range(of: #"!\[[^\]]*\]\(([^)]+)\)"#, options: .regularExpression) else { return nil }
+                guard message.role == .assistant, let range = message.content.range(of: #"!\[[^\]]*\]\(([^)]+)\)"#, options: .regularExpression) else { return nil }
                 let blob = String(message.content[range])
                 guard let open = blob.lastIndex(of: "("), let close = blob.lastIndex(of: ")"), open < close else { return nil }
                 let url = String(blob[blob.index(after: open)..<close])
@@ -97,6 +97,8 @@ private struct AutomationsPage: View {
                                 model.automations[index].enabled.toggle()
                             }
                         }
+                        Button("立即运行") { model.runAutomation(item.id) }
+                            .disabled(model.busy)
                         Button("删除", role: .destructive) { model.automations.removeAll { $0.id == item.id } }
                     }
                 }
