@@ -537,6 +537,24 @@ private struct AttachmentChip: View {
     }
 }
 
+/// AppKit AVPlayerView instead of SwiftUI's VideoPlayer: _AVKit_SwiftUI aborts while
+/// instantiating VideoPlayer metadata on macOS 26.7 (getSuperclassMetadata), crashing any chat with a video.
+private struct PlayerView: NSViewRepresentable {
+    var player: AVPlayer?
+
+    func makeNSView(context: Context) -> AVPlayerView {
+        let view = AVPlayerView()
+        view.controlsStyle = .inline
+        view.videoGravity = .resizeAspect
+        view.player = player
+        return view
+    }
+
+    func updateNSView(_ view: AVPlayerView, context: Context) {
+        if view.player !== player { view.player = player }
+    }
+}
+
 private struct VideoCard: View {
     var url: URL
     @State private var player: AVPlayer?
@@ -544,7 +562,7 @@ private struct VideoCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if FileManager.default.fileExists(atPath: url.path) {
-                VideoPlayer(player: player)
+                PlayerView(player: player)
                     .frame(maxWidth: 560)
                     .aspectRatio(16 / 9, contentMode: .fit)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
