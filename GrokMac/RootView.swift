@@ -81,7 +81,7 @@ private struct PaletteSheet: View {
     @State private var query = ""
 
     private var items: [String] {
-        let all = ["新对话", "显示终端", "Fast", "Auto", "Expert", "代码模式", "计划模式", "提问模式", "登录"]
+        let all = ["新对话", "显示终端", "Auto", "Fast", "Expert", "Heavy", "代码模式", "计划模式", "提问模式", "登录"]
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         guard !q.isEmpty else { return all }
         return all.filter { $0.lowercased().contains(q) }
@@ -110,6 +110,7 @@ private struct PaletteSheet: View {
         case "Fast": model.tier = .fast
         case "Auto": model.tier = .auto
         case "Expert": model.tier = .expert
+        case "Heavy": model.tier = .heavy
         case "代码模式": model.mode = .code
         case "计划模式": model.mode = .plan
         case "提问模式": model.mode = .ask

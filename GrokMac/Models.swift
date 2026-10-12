@@ -1,38 +1,46 @@
 import Foundation
 
 enum ReplyTier: String, Codable, CaseIterable, Identifiable {
-    case fast, auto, expert
+    case auto, fast, expert, heavy
     var id: String { rawValue }
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = ReplyTier(rawValue: raw) ?? .fast
+    }
 
     var title: String {
         switch self {
-        case .fast: "Fast"
         case .auto: "Auto"
+        case .fast: "Fast"
         case .expert: "Expert"
+        case .heavy: "Heavy"
         }
     }
 
     var hint: String {
         switch self {
-        case .fast: "更短"
-        case .auto: "默认"
-        case .expert: "更完整"
+        case .auto: "自动选择 Fast 或 Expert"
+        case .fast: "快速回答"
+        case .expert: "深度思考 · Grok 4.7"
+        case .heavy: "多专家协作 · Grok 4.7"
         }
     }
 
-    var maxTokens: Int {
+    /// Model ids from https://docs.x.ai/docs/models
+    var modelID: String {
         switch self {
-        case .fast: 480
-        case .auto: 900
-        case .expert: 1400
+        case .heavy: "grok-4.20-multi-agent-0309"
+        default: "grok-4.7"
         }
     }
 
-    var temperature: Double {
+    /// reasoning.effort, see https://docs.x.ai/docs/guides/reasoning
+    var effort: String? {
         switch self {
-        case .fast: 0.5
-        case .auto: 0.7
-        case .expert: 0.4
+        case .fast: "low"
+        case .expert, .auto: "high"
+        case .heavy: nil
         }
     }
 
@@ -40,8 +48,20 @@ enum ReplyTier: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .fast: "Keep the answer short unless the user asks for depth."
         case .auto: "Match the length to the question."
-        case .expert: "Be thorough and structured, without filler or repetition."
+        case .expert, .heavy: "Be thorough and structured, without filler or repetition."
         }
+    }
+
+    /// Auto picks Fast or Expert on the client.
+    func resolved(prompt: String, mode: AgentMode) -> ReplyTier {
+        guard self == .auto else { return self }
+        if mode == .code || mode == .plan { return .expert }
+        let lower = prompt.lowercased()
+        let cues = ["```", "证明", "推导", "分析", "比较", "设计", "架构", "步骤", "为什么", "代码", "算法", "debug", "prove", "analy", "step by step", "explain why", "compare"]
+        if prompt.count > 280 || prompt.split(separator: "\n").count > 4 || cues.contains(where: { lower.contains($0) }) {
+            return .expert
+        }
+        return .fast
     }
 }
 
@@ -198,7 +218,7 @@ let commandHelp = """
 命令
 /help        查看命令
 /new         新对话（/clear、/home 相同）
-/model       fast、auto 或 expert
+/model       auto、fast、expert 或 heavy
 /mode        code、plan 或 ask
 /code        代码模式，后面可直接写任务
 /plan        计划模式
@@ -227,7 +247,7 @@ struct SlashCommand: Identifiable {
 let slashCatalog: [SlashCommand] = [
     .init(name: "/help", hint: "命令与快捷键"),
     .init(name: "/new", hint: "新对话"),
-    .init(name: "/model", hint: "fast · auto · expert"),
+    .init(name: "/model", hint: "auto · fast · expert · heavy"),
     .init(name: "/mode", hint: "code · plan · ask"),
     .init(name: "/plan", hint: "计划模式"),
     .init(name: "/ask", hint: "只回答"),

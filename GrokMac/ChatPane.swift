@@ -97,7 +97,15 @@ struct ChatPane: View {
 
                 Menu {
                     ForEach(ReplyTier.allCases) { tier in
-                        Button("\(tier.title) · \(tier.hint)") { model.tier = tier }
+                        Button {
+                            model.tier = tier
+                        } label: {
+                            if model.tier == tier {
+                                Label("\(tier.title) · \(tier.hint)", systemImage: "checkmark")
+                            } else {
+                                Text("\(tier.title) · \(tier.hint)")
+                            }
+                        }
                     }
                 } label: {
                     Text(model.tier.title)

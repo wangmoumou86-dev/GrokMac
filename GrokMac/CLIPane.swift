@@ -102,7 +102,7 @@ struct CLIPane: View {
                 HStack {
                     Text(model.mode.rawValue)
                     Spacer()
-                    Text("\(model.tier.rawValue) · grok-4.5")
+                    Text("\(model.tier.rawValue) · \(model.tier.modelID)")
                         .lineLimit(1)
                     Spacer()
                     Text("ctx \(contextPercent(model.active.messages))%")

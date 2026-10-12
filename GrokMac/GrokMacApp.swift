@@ -40,9 +40,9 @@ private struct GrokCommands: Commands {
             modeButton("计划", .plan)
             modeButton("提问", .ask)
             Divider()
-            tierButton("Fast", .fast)
-            tierButton("Auto", .auto)
-            tierButton("Expert", .expert)
+            ForEach(ReplyTier.allCases) { tier in
+                tierButton("\(tier.title) · \(tier.hint)", tier)
+            }
         }
     }
 

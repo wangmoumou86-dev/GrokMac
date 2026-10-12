@@ -15,6 +15,14 @@ enum GrokClientError: LocalizedError {
 }
 
 enum GrokClient {
+    enum StreamEvent {
+        case text(String)
+        case reasoning(String)
+        case citations([String])
+    }
+
+    /// Streams a reply over the Responses API: https://docs.x.ai/developers/rest-api-reference/inference/responses
+    /// The multi-agent model only works there: https://docs.x.ai/developers/model-capabilities/text/multi-agent
     static func stream(
         key: String,
         history: [ChatMessage],
@@ -22,28 +30,30 @@ enum GrokClient {
         mode: AgentMode,
         surface: ChatSurface,
         note: String = "",
-        onDelta: @escaping @MainActor (String) -> Void
+        onEvent: @escaping @MainActor (StreamEvent) -> Void
     ) async throws {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw GrokClientError.missingKey }
 
-        var request = URLRequest(url: URL(string: "https://api.x.ai/v1/chat/completions")!)
+        var request = URLRequest(url: URL(string: "https://api.x.ai/v1/responses")!)
         request.httpMethod = "POST"
         request.setValue("Bearer \(trimmed)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 60
+        request.timeoutInterval = tier == .heavy ? 900 : 300
 
-        let prior = history
+        let prior: [[String: Any]] = history
             .filter { $0.role == .user || $0.role == .assistant }
             .suffix(16)
             .map { ["role": $0.role.rawValue, "content": String($0.content.prefix(6000))] }
-        let payload: [String: Any] = [
-            "model": "grok-4.5",
+        var payload: [String: Any] = [
+            "model": tier.modelID,
             "stream": true,
-            "temperature": tier.temperature,
-            "max_tokens": tier.maxTokens,
-            "messages": [["role": "system", "content": systemPrompt(tier: tier, mode: mode, surface: surface) + (note.isEmpty ? "" : "\n" + note)]] + prior,
+            "store": false,
+            "input": [["role": "system", "content": systemPrompt(tier: tier, mode: mode, surface: surface) + (note.isEmpty ? "" : "\n" + note)]] + prior,
         ]
+        if let effort = tier.effort {
+            payload["reasoning"] = ["effort": effort]
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
@@ -63,14 +73,43 @@ enum GrokClient {
             let raw = trimmedLine.dropFirst(5).trimmingCharacters(in: .whitespaces)
             if raw.isEmpty || raw == "[DONE]" { continue }
             guard let blob = raw.data(using: .utf8),
-                  let json = try? JSONSerialization.jsonObject(with: blob) as? [String: Any],
-                  let choices = json["choices"] as? [[String: Any]],
-                  let delta = choices.first?["delta"] as? [String: Any],
-                  let content = delta["content"] as? String,
-                  !content.isEmpty
+                  let json = try? JSONSerialization.jsonObject(with: blob) as? [String: Any]
             else { continue }
-            await MainActor.run { onDelta(content) }
+            let type = json["type"] as? String ?? ""
+            switch type {
+            case "response.output_text.delta":
+                if let delta = json["delta"] as? String, !delta.isEmpty {
+                    await MainActor.run { onEvent(.text(delta)) }
+                }
+            case "response.reasoning_summary_text.delta", "response.reasoning_text.delta":
+                if let delta = json["delta"] as? String, !delta.isEmpty {
+                    await MainActor.run { onEvent(.reasoning(delta)) }
+                }
+            case "response.completed":
+                let links = citations(in: json["response"] as? [String: Any] ?? [:])
+                if !links.isEmpty { await MainActor.run { onEvent(.citations(links)) } }
+            case "response.failed", "error":
+                let body = (json["response"] as? [String: Any])?["error"] as? [String: Any] ?? json["error"] as? [String: Any] ?? json
+                let detail = body["message"] as? String ?? ""
+                throw GrokClientError.badStatus(-1, detail.isEmpty ? "Grok 没有完成回答。" : "Grok 没有完成回答。\(detail.prefix(160))")
+            default:
+                continue
+            }
         }
+    }
+
+    /// `citations` on the response plus url_citation annotations: https://docs.x.ai/developers/tools/citations
+    private static func citations(in response: [String: Any]) -> [String] {
+        var links = response["citations"] as? [String] ?? []
+        for item in response["output"] as? [[String: Any]] ?? [] {
+            for part in item["content"] as? [[String: Any]] ?? [] {
+                for note in part["annotations"] as? [[String: Any]] ?? [] {
+                    if let url = note["url"] as? String { links.append(url) }
+                }
+            }
+        }
+        var seen = Set<String>()
+        return links.filter { $0.hasPrefix("http") && seen.insert($0).inserted }
     }
 
     private static func systemPrompt(tier: ReplyTier, mode: AgentMode, surface: ChatSurface) -> String {
@@ -271,7 +310,7 @@ enum GrokClient {
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let payload: [String: Any] = [
-            "model": "grok-4.5",
+            "model": "grok-4.7",
             "temperature": 0.2,
             "messages": messages,
             "tools": tools,

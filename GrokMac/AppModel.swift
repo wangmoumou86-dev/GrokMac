@@ -50,7 +50,7 @@ final class AppModel {
             let session = ChatSession.fresh()
             sessions = [session]
             activeID = session.id
-            tier = .auto
+            tier = .fast
             mode = .code
             cliOpen = true
         }
@@ -216,14 +216,14 @@ final class AppModel {
             return .done
         case "model", "m":
             guard !arg.isEmpty else {
-                return done("当前是 \(tier.rawValue) · Grok 4.5\n可选：fast、auto、expert")
+                return done("当前是 \(tier.title) · \(tier.hint)\n可选：auto、fast、expert、heavy")
             }
             guard let next = ReplyTier(rawValue: arg.lowercased()) else {
-                return done("用法：/model fast|auto|expert")
+                return done("用法：/model auto|fast|expert|heavy")
             }
             tier = next
             scheduleSave()
-            return done("已切换到 \(next.rawValue) · Grok 4.5")
+            return done("已切换到 \(next.title) · \(next.hint)")
         case "mode":
             guard !arg.isEmpty else {
                 return done("当前模式 \(mode.rawValue)\n可选：code、plan、ask。终端里也可以 Shift+Tab。")
@@ -288,7 +288,7 @@ final class AppModel {
             session.messages.append(contentsOf: [user, assistant])
         }
         busy = true
-        let chosenTier = tier
+        let chosenTier = tier.resolved(prompt: text, mode: mode)
         let chosenMode = mode
         let key = KeychainStore.load()
         let imagine = place == .imagine && surface == .web
@@ -313,7 +313,8 @@ final class AppModel {
                     mode: chosenMode,
                     surface: surface,
                     note: note
-                ) { chunk in
+                ) { event in
+                    guard case .text(let chunk) = event else { return }
                     acc += chunk
                     self.replaceAssistant(sessionID: sessionID, messageID: assistantID, content: acc, pending: true, error: false)
                 }
