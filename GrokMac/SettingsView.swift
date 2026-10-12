@@ -93,7 +93,7 @@ private struct GeneralSettings: View {
                     Text("中文").tag("zh")
                     Text("English").tag("en")
                 }
-                Text(tr("界面语言目前覆盖设置、输入框和侧边栏；其余文字仍是中文。", "English currently covers Settings, the composer and the sidebar; other text is still Chinese."))
+                Text(tr("切换后整个界面、提示和工具结果都会换成所选语言；Grok 的回答仍跟随你提问的语言。", "The whole interface, prompts and tool results switch to this language; Grok still replies in the language you write in."))
                     .font(Theme.ui(11))
                     .foregroundStyle(.secondary)
             }
