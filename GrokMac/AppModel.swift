@@ -27,6 +27,8 @@ final class AppModel {
     var showLogin = true
     var signedIn = !KeychainStore.load().isEmpty
     var loginWaiting = false
+    var profile = AccountProfile.cached()
+    var avatar = AccountProfile.cachedImage()
     var loginFailed = false
     var projectLabel = ProjectStore.label()
     var autoRun = false
@@ -80,7 +82,20 @@ final class AppModel {
             useWorktree = extra.useWorktree ?? false
         }
         showLogin = !signedIn
-        if signedIn { clearLoginErrors() }
+        if signedIn {
+            clearLoginErrors()
+            refreshProfile()
+        }
+    }
+
+    /// Reads name/email/picture from auth.x.ai userinfo with the stored token (no re-login).
+    func refreshProfile() {
+        let token = KeychainStore.load()
+        Task { @MainActor [weak self] in
+            guard let result = await AccountProfile.refresh(token: token) else { return }
+            self?.profile = result.0
+            if let image = result.1 { self?.avatar = image }
+        }
     }
 
     /// Every 登录 entry point goes through here so the paste field always shows.
@@ -109,6 +124,9 @@ final class AppModel {
     func signOut() {
         KeychainStore.save("")
         signedIn = false
+        profile = nil
+        avatar = nil
+        AccountProfile.clearCache()
         beginLogin()
     }
 
@@ -128,6 +146,7 @@ final class AppModel {
             signedIn = true
             clearLoginErrors()
             skipLogin()
+            refreshProfile()
         } else {
             loginFailed = true
         }

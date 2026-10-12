@@ -102,7 +102,7 @@ struct SidebarView: View {
                         Button(tr("重新登录", "Sign in again")) { model.beginLogin() }
                         Button(tr("退出登录", "Sign out"), role: .destructive) { model.signOut() }
                     } label: {
-                        AccountRow(title: tr("已登录 Grok", "Signed in"), subtitle: "xAI")
+                        AccountRow(title: model.profile?.name ?? tr("已登录 Grok", "Signed in"), subtitle: model.profile?.email ?? "xAI", image: model.avatar, initials: model.profile?.initials ?? "")
                     }
                     .menuStyle(.button)
                     .menuIndicator(.hidden)
@@ -195,16 +195,32 @@ private struct SidebarRow: View {
 private struct AccountRow: View {
     var title: String
     var subtitle: String
+    var image: NSImage? = nil
+    var initials = ""
     @State private var hover = false
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "person.crop.circle.fill")
-                .font(Theme.ui(26))
-                .foregroundStyle(Theme.fg3)
+            Group {
+                if let image {
+                    Image(nsImage: image).resizable().scaledToFill()
+                } else if !initials.isEmpty {
+                    Text(initials)
+                        .font(Theme.ui(12, .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(LinearGradient(colors: [Color(red: 1, green: 0.39, blue: 0.04), Color(red: 0.1, green: 0.37, blue: 1)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                } else {
+                    Image(systemName: "person.crop.circle.fill")
+                        .resizable()
+                        .foregroundStyle(Theme.fg3)
+                }
+            }
+            .frame(width: 28, height: 28)
+            .clipShape(Circle())
             VStack(alignment: .leading, spacing: 0) {
-                Text(title).font(Theme.ui(14, .medium)).foregroundStyle(Theme.fg1)
-                Text(subtitle).font(Theme.ui(12)).foregroundStyle(Theme.fg3)
+                Text(title).font(Theme.ui(14, .medium)).foregroundStyle(Theme.fg1).lineLimit(1)
+                Text(subtitle).font(Theme.ui(12)).foregroundStyle(Theme.fg3).lineLimit(1).truncationMode(.middle)
             }
             Spacer(minLength: 0)
         }
