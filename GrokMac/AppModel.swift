@@ -492,7 +492,11 @@ final class AppModel {
                         acc += chunk
                         self.replaceAssistant(sessionID: sessionID, messageID: messageID, content: acc, pending: true, error: false)
                     case .citations(let links):
-                        self.updateMessage(sessionID: sessionID, messageID: messageID) { $0.citations = links }
+                        // Merge across tool turns of this one reply; other messages are never touched.
+                        self.updateMessage(sessionID: sessionID, messageID: messageID) { message in
+                            let merged = (message.citations ?? []) + links.filter { !(message.citations ?? []).contains($0) }
+                            message.citations = merged
+                        }
                     case .reasoning(let chunk):
                         self.updateMessage(sessionID: sessionID, messageID: messageID) { $0.reasoning = ($0.reasoning ?? "") + chunk }
                     }

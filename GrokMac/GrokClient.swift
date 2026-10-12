@@ -89,18 +89,27 @@ enum GrokClient {
         return finished ?? items
     }
 
-    /// `citations` on the response plus url_citation annotations: https://docs.x.ai/developers/tools/citations
+    /// Sources for this response only: https://docs.x.ai/developers/tools/citations
+    /// `response.citations` is used only when this response actually ran a server-side search, so links
+    /// echoed from earlier turns in the input never show up under a new reply.
     private static func citations(in response: [String: Any]) -> [String] {
-        var links = response["citations"] as? [String] ?? []
-        for item in response["output"] as? [[String: Any]] ?? [] {
+        let output = response["output"] as? [[String: Any]] ?? []
+        let searched = output.contains { (($0["type"] as? String) ?? "").hasSuffix("search_call") }
+        var links = searched ? (response["citations"] as? [String] ?? []) : []
+        for item in output where (item["type"] as? String) == "message" {
             for part in item["content"] as? [[String: Any]] ?? [] {
-                for note in part["annotations"] as? [[String: Any]] ?? [] {
+                for note in part["annotations"] as? [[String: Any]] ?? [] where (note["type"] as? String) == "url_citation" {
                     if let url = note["url"] as? String { links.append(url) }
                 }
             }
         }
         var seen = Set<String>()
         return links.filter { $0.hasPrefix("http") && seen.insert($0).inserted }
+    }
+
+    /// Drops inline `[[n]](url)` citation links from earlier replies before they are sent back as history.
+    private static func strippingCitations(_ text: String) -> String {
+        text.replacingOccurrences(of: #"\s?\[\[\d+\]\]\([^)\s]+\)"#, with: "", options: .regularExpression)
     }
 
     private static func systemPrompt(tier: ReplyTier, mode: AgentMode, root: URL, projectChosen: Bool, sandbox: String, approval: String) -> String {
@@ -185,7 +194,9 @@ enum GrokClient {
                 let parts: [[String: Any]] = [["type": "input_text", "text": String(message.promptText.prefix(6000 + ComposerAttachment.maxPDFChars))]]
                     + message.allImages.map { ["type": "input_image", "image_url": $0, "detail": "high"] }
                 input.append(["role": "user", "content": parts])
-            } else if (message.role == .user || message.role == .assistant), !message.content.isEmpty {
+            } else if message.role == .assistant, !message.content.isEmpty {
+                input.append(["role": "assistant", "content": String(strippingCitations(message.content).prefix(6000))])
+            } else if message.role == .user, !message.content.isEmpty {
                 input.append(["role": message.role.rawValue, "content": String(message.promptText.prefix(message.context == nil ? 6000 : 6000 + ComposerAttachment.maxPDFChars))])
             }
         }
