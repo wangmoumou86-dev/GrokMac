@@ -40,12 +40,6 @@ final class AppModel {
     var imagineVideo = false
     var voiceOpen = false
     let voice = VoiceSession()
-    var webSearch = UserDefaults.standard.bool(forKey: "grok.webSearch") {
-        didSet { UserDefaults.standard.set(webSearch, forKey: "grok.webSearch") }
-    }
-    var xSearch = UserDefaults.standard.bool(forKey: "grok.xSearch") {
-        didSet { UserDefaults.standard.set(xSearch, forKey: "grok.xSearch") }
-    }
     var gateTitle = ""
     var gateDetail = ""
     var gateKind = ""
@@ -81,6 +75,9 @@ final class AppModel {
             approvalPolicy = extra.approvalPolicy ?? "on-request"
             useWorktree = extra.useWorktree ?? false
         }
+        // The composer search toggles were removed; drop their stored values.
+        UserDefaults.standard.removeObject(forKey: "grok.webSearch")
+        UserDefaults.standard.removeObject(forKey: "grok.xSearch")
         showLogin = !signedIn
         if signedIn {
             clearLoginErrors()
@@ -398,7 +395,8 @@ final class AppModel {
         let imagine = place == .imagine && surface == .web
         if place != .imagine { imagineVideo = false }
         let note = contextNote()
-        let search = (webSearch ? ["web_search"] : []) + (xSearch ? ["x_search"] : [])
+        // Web and X search are always on for chat.
+        let search = ["web_search", "x_search"]
         chatTask?.cancel()
         chatTask = Task { @MainActor [weak self] in
             guard let self else { return }

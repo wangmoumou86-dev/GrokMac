@@ -186,12 +186,6 @@ struct ChatPane: View {
                     .help("生成图片或视频")
                 }
 
-                if model.place != .imagine {
-                    SearchToggle(title: tr("联网", "Web"), icon: "globe", on: model.webSearch) { model.webSearch.toggle() }
-                        .help("让 Grok 搜索网页并附上来源")
-                    SearchToggle(title: "X", icon: "at", on: model.xSearch) { model.xSearch.toggle() }
-                        .help("让 Grok 搜索 X 上的帖子")
-                }
 
                 Spacer()
                 if model.place != .imagine {
@@ -333,29 +327,6 @@ private struct MessageRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-}
-
-private struct SearchToggle: View {
-    var title: String
-    var icon: String
-    var on: Bool
-    var action: () -> Void
-    @State private var hover = false
-
-    var body: some View {
-        Button(action: action) {
-            Label(title, systemImage: icon)
-                .font(Theme.ui(14, .medium))
-                .padding(.horizontal, 14)
-                .frame(height: 36)
-                .background(Capsule().fill(hover && !on ? Theme.hover : Color.clear))
-                .overlay(Capsule().stroke(on ? Theme.link : Color.clear, lineWidth: 1))
-                .foregroundStyle(on ? Theme.link : Theme.fg2)
-                .contentShape(Capsule())
-                .onHover { hover = $0 }
-        }
-        .buttonStyle(.plain)
     }
 }
 
