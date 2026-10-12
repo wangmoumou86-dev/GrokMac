@@ -36,7 +36,7 @@ struct ToolCardView: View {
                     Image(systemName: icon)
                         .font(Theme.ui(11))
                     Text(tool.name == "bash" ? "$ " + tool.input : "\(tool.name)  \(tool.input)")
-                        .font(.caption.monospaced())
+                        .font(Theme.mono(12))
                         .lineLimit(1)
                         .truncationMode(.tail)
                     Spacer()
@@ -52,14 +52,14 @@ struct ToolCardView: View {
             .buttonStyle(.plain)
             if open {
                 Text(tool.input)
-                    .font(.caption.monospaced())
+                    .font(Theme.mono(12))
                     .foregroundStyle(.secondary)
                     .lineLimit(12)
                     .textSelection(.enabled)
                 if !tool.output.isEmpty {
                     ScrollView {
                         Text(tool.output)
-                            .font(.caption.monospaced())
+                            .font(Theme.mono(12))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }

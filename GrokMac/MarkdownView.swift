@@ -86,7 +86,7 @@ private struct CodeBlock: View {
     private var codeText: some View {
         Text(code)
             .font(Theme.mono(13.5))
-            .lineSpacing(4)
+            .lineSpacing(Theme.scaled(4))
             .foregroundStyle(Theme.fg1)
             .textSelection(.enabled)
     }

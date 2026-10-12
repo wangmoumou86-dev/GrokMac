@@ -103,7 +103,7 @@ struct ChatPane: View {
             TextField(Prefs.shared.commandEnterSends ? tr("询问任何问题（⌘↩ 发送）", "Ask anything (⌘↩ to send)") : tr("询问任何问题", "Ask anything"), text: $draft, axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(Theme.ui(16))
-                .lineSpacing(6)
+                .lineSpacing(Theme.scaled(6))
                 .lineLimit(1...6)
                 .padding(.horizontal, 8)
                 .padding(.top, 14)
@@ -292,7 +292,7 @@ private struct MessageRow: View {
                     }
                     Text(message.content)
                         .font(Theme.ui(15))
-                        .lineSpacing(7.5)
+                        .lineSpacing(Theme.scaled(7.5))
                         .foregroundStyle(Theme.fg1)
                         .textSelection(.enabled)
                 }
@@ -449,7 +449,7 @@ private struct ThinkingSection: View {
                 ScrollView {
                     Text(text)
                         .font(Theme.ui(14))
-                        .lineSpacing(4)
+                        .lineSpacing(Theme.scaled(4))
                         .foregroundStyle(Theme.fg2)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)

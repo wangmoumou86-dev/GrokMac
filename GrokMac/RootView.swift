@@ -46,7 +46,7 @@ private struct GateBar: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(model.gateTitle).font(Theme.ui(13, .semibold))
             Text(model.gateDetail)
-                .font(.caption.monospaced())
+                .font(Theme.mono(12))
                 .lineLimit(8)
                 .textSelection(.enabled)
             if model.gateKind == "ask" {

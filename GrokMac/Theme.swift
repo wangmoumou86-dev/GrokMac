@@ -34,8 +34,14 @@ enum Theme {
 
     static let uiFamily = "Inter"
     static let proseFamily = "Source Serif 4"
+    /// Global type scale. Every Theme.ui/prose/proseHeading/mono size is multiplied by this,
+    /// e.g. prose 16→14, UI 14→12.25, composer 16→14.
+    static let fontScale: CGFloat = 0.875
     static let proseSize: CGFloat = 16
-    static let proseLineSpacing: CGFloat = 8
+    static let proseLineSpacing: CGFloat = 8 * fontScale
+
+    /// Scales a design-size metric (used for line spacing tied to text size).
+    static func scaled(_ value: CGFloat) -> CGFloat { (value * fontScale).rounded(.toNearestOrAwayFromZero) }
 
     /// Registers the bundled fonts for this process only. Call once at launch.
     static func registerFonts() {
@@ -46,12 +52,12 @@ enum Theme {
 
     /// Inter at the given size; weights Regular, Medium and SemiBold are bundled.
     static func ui(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-        .custom(uiFamily, size: size).weight(weight)
+        .custom(uiFamily, size: size * fontScale).weight(weight)
     }
 
     /// Source Serif 4 for assistant prose (Regular, Semibold, Italic bundled).
     static func prose(_ size: CGFloat = proseSize, _ weight: Font.Weight = .regular) -> Font {
-        .custom(proseFamily, size: size).weight(weight)
+        .custom(proseFamily, size: size * fontScale).weight(weight)
     }
 
     static func proseHeading(level: Int) -> Font {
@@ -59,7 +65,7 @@ enum Theme {
     }
 
     static func mono(_ size: CGFloat) -> Font {
-        .system(size: size, design: .monospaced)
+        .system(size: size * fontScale, design: .monospaced)
     }
 
     /// Measured layout values.
