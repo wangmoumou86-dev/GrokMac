@@ -215,6 +215,8 @@ enum GrokClient {
         for tool in agentTools {
             guard let function = tool["function"] as? [String: Any], let name = function["name"] as? String, allowed(mode, name) else { continue }
             if name == "web_search", search.contains("web_search") { continue }
+            // Image generation is never offered on an ordinary chat turn; only when the user explicitly asks.
+            if name == "generate_image", !explicitlyAsksForImage(history.last(where: { $0.role == .user })?.content ?? "") { continue }
             tools.append(["type": "function", "name": name, "description": function["description"] ?? "", "parameters": function["parameters"] ?? [:]])
         }
 
@@ -512,4 +514,13 @@ enum GrokClient {
         }
         throw GrokClientError.badStatus(-1, "视频生成超时。")
     }
+}
+
+/// True only for a clear, explicit request to create an image (e.g. "画一张…", "generate an image").
+/// Video is never generated from chat; it requires Imagine → 视频.
+func explicitlyAsksForImage(_ text: String) -> Bool {
+    let lower = text.lowercased()
+    let cues = ["生成图片", "生成一张", "生成一幅", "画一张", "画一幅", "画一个", "帮我画", "给我画", "做一张图", "出一张图",
+                "generate an image", "generate a picture", "create an image", "create a picture", "draw a picture", "draw me", "make an image"]
+    return cues.contains { lower.contains($0) }
 }

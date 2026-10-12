@@ -24,22 +24,6 @@ struct ChatPane: View {
                         .foregroundStyle(Theme.fg1)
                     composer
                         .frame(maxWidth: Theme.composerWidth)
-                    if model.place != .imagine {
-                        HStack(spacing: 8) {
-                            ForEach(homeSuggestions, id: \.self) { item in
-                                Button { draft = item } label: {
-                                    Text(item)
-                                        .font(Theme.ui(14))
-                                        .foregroundStyle(Theme.fg2)
-                                        .padding(.horizontal, 12)
-                                        .frame(height: 32)
-                                        .background(Capsule().fill(Theme.surface1))
-                                        .overlay(Capsule().stroke(Theme.border1, lineWidth: 1))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
                 }
                 .padding(.bottom, 80)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -257,10 +241,6 @@ struct ChatPane: View {
         if let item = ComposerAttachment.load(url) {
             attachments.append(item)
         }
-    }
-
-    private var homeSuggestions: [String] {
-        [tr("运行一个命令", "Run a command"), tr("读写工程文件", "Edit project files"), tr("联网研究", "Research the web"), tr("解释这段代码", "Explain this code")]
     }
 
     private var canSend: Bool {

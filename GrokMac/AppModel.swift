@@ -12,7 +12,9 @@ final class AppModel {
     var activeID: UUID
     var tier: ReplyTier
     var mode: AgentMode
-    var place: AppPlace = .chat
+    var place: AppPlace = .chat {
+        didSet { if place != .imagine { imagineVideo = false } }
+    }
     var hubTab = "connectors"
     var botsOpen = true
     var connected: [String] = ["github"]
@@ -32,6 +34,7 @@ final class AppModel {
     var sandboxMode = "workspace-write"
     var approvalPolicy = "on-request"
     var useWorktree = false
+    /// Video only when the user picks Imagine → 视频; reset whenever Imagine is left.
     var imagineVideo = false
     var voiceOpen = false
     let voice = VoiceSession()
@@ -64,7 +67,8 @@ final class AppModel {
             mode = .code
         }
         if let extra = Self.loadExtra() {
-            place = extra.place
+            // Never reopen in Imagine: a stale Imagine/video mode would turn the next prompt into a generation.
+            place = extra.place == .imagine ? .chat : extra.place
             hubTab = extra.hubTab
             connected = extra.connected
             bots = extra.bots
@@ -373,6 +377,7 @@ final class AppModel {
         let chosenMode = mode
         let key = KeychainStore.load()
         let imagine = place == .imagine && surface == .web
+        if place != .imagine { imagineVideo = false }
         let note = contextNote()
         let search = (webSearch ? ["web_search"] : []) + (xSearch ? ["x_search"] : [])
         chatTask?.cancel()
