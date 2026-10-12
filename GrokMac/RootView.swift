@@ -136,7 +136,7 @@ private struct LoginGate: View {
                 Text("会在浏览器打开 accounts.x.ai")
                     .foregroundStyle(.secondary)
                 Button("登录") {
-                    LoginSession.shared.start()
+                    LoginSession.start()
                     model.showLogin = false
                 }
                 .buttonStyle(.borderedProminent)

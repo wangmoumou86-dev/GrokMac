@@ -88,7 +88,7 @@ struct SidebarView: View {
             .searchable(text: $query, placement: .sidebar, prompt: "搜索")
             Divider()
             Button {
-                LoginSession.shared.start()
+                LoginSession.start()
             } label: {
                 Label("登录", systemImage: "person.crop.circle")
                     .frame(maxWidth: .infinity, alignment: .leading)
