@@ -14,9 +14,9 @@ struct ChatPane: View {
         Group {
             if visible.isEmpty {
                 VStack(spacing: 20) {
-                    Text("Grok")
+                    Text(model.place == .imagine ? "Imagine" : "Grok")
                         .font(.system(size: 40, weight: .medium))
-                    Text("对话和终端是同一条会话")
+                    Text(model.place == .imagine ? "描述你要的图片" : "左边是网页端，右边终端改这台 Mac 上的工程")
                         .foregroundStyle(.secondary)
                     composer
                         .frame(maxWidth: 720)

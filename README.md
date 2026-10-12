@@ -23,12 +23,12 @@
 - 系统窗口、侧栏会话、检查器里的终端
 - 斜杠命令（`/help`、`/model`、`/mode`、`/new` 等），终端里 Shift+Tab 切换模式
 - 流式调用 `grok-4.5`。Fast / Auto / Expert 是回答长短，不是不同的模型
-- 右边终端是工具代理。代码模式默认每次改文件或执行命令前都会问你，底部可以允许或拒绝，设置里也能改成直接执行
-- 提问和计划模式只读。计划模式可以改任务列表
-- 会自动读工程里的 `AGENTS.md`、`CLAUDE.md`、`README.md`
-- 工具包括读写、补丁、正则搜索、项目搜索、提问、撤销、跑测试、用 `gh` 开 PR
-- 关掉「命令可以联网」后，命令跑在没有网络的沙箱里
-- 先用 ⌘, 选择工程文件夹。工具只会改那个目录
+同一个 Mac 应用里有两块：
+
+- 左边按 grok.com：Chat、Imagine、Library、Automations、Bots、Connectors
+- 右边是本地 CLI。先用 ⌘, 选工程文件夹，工具只改那个目录。改文件和执行命令前会问你
+
+Chat 是对话。Imagine 生成图片。Library 收图片。Automations 在应用开着时到点自己提问。终端才是本地 Grok CLI。
 - 对话存在 `~/Library/Application Support/GrokMac/sessions.json`
 
 左边的普通对话不会改文件。要它动手，用右边的终端。

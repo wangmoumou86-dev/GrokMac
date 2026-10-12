@@ -58,6 +58,74 @@ enum AgentMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum AppPlace: String, Codable, CaseIterable, Identifiable {
+    case chat, imagine, library, automations, hub
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .chat: "Chat"
+        case .imagine: "Imagine"
+        case .library: "Library"
+        case .automations: "Automations"
+        case .hub: "Connectors"
+        }
+    }
+}
+
+struct GrokBot: Identifiable, Codable, Equatable {
+    var id: UUID
+    var name: String
+    var prompt: String
+}
+
+struct GrokSkill: Identifiable, Codable, Equatable {
+    var id: UUID
+    var name: String
+    var text: String
+    var on: Bool
+}
+
+struct GrokAutomation: Identifiable, Codable, Equatable {
+    var id: UUID
+    var name: String
+    var prompt: String
+    var everyHours: Int
+    var enabled: Bool
+    var lastRun: Date
+}
+
+struct GrokConnector: Identifiable {
+    var id: String
+    var name: String
+    var blurb: String
+    var group: String
+    var mark: String
+}
+
+enum GrokCatalog {
+    static let connectors: [GrokConnector] = [
+        .init(id: "github", name: "GitHub", blurb: "Search repos and PRs", group: "connected", mark: "gh"),
+        .init(id: "finance", name: "Finance", blurb: "Securely connect financial accounts", group: "featured", mark: "Fn"),
+        .init(id: "gmail", name: "Gmail", blurb: "Search and draft emails", group: "featured", mark: "M"),
+        .init(id: "gcal", name: "Google Calendar", blurb: "Check your schedule", group: "featured", mark: "31"),
+        .init(id: "gdrive", name: "Google Drive", blurb: "Search files and docs", group: "featured", mark: "Dr"),
+        .init(id: "box", name: "Box", blurb: "Search files and docs", group: "featured", mark: "box"),
+        .init(id: "canva", name: "Canva", blurb: "Create and edit designs", group: "featured", mark: "C"),
+        .init(id: "notion", name: "Notion", blurb: "Search pages and docs", group: "featured", mark: "N"),
+        .init(id: "shopify", name: "Shopify", blurb: "Manage your store", group: "featured", mark: "S"),
+        .init(id: "stripe", name: "Stripe", blurb: "Look up payments", group: "featured", mark: "St"),
+        .init(id: "vercel", name: "Vercel", blurb: "Manage your deploys", group: "featured", mark: "▲"),
+        .init(id: "wix", name: "Wix", blurb: "Manage your Wix site", group: "featured", mark: "W"),
+        .init(id: "xads", name: "X Ads", blurb: "Manage campaigns", group: "advertising", mark: "X"),
+    ]
+
+    static let defaultSkills: [GrokSkill] = [
+        .init(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, name: "Code", text: "Prefer concrete code changes and the local tools.", on: true),
+        .init(id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!, name: "Search", text: "Use web_search when the answer needs current facts.", on: true),
+        .init(id: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!, name: "Imagine", text: "Use generate_image when the user wants a picture.", on: false),
+    ]
+}
+
 enum ChatSurface: String, Codable {
     case web, cli
 }

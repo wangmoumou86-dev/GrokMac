@@ -10,9 +10,13 @@ struct RootView: View {
             SidebarView()
                 .navigationSplitViewColumnWidth(min: 220, ideal: 248, max: 320)
         } detail: {
-            ChatPane()
+            if model.place == .chat || model.place == .imagine {
+                ChatPane()
+            } else {
+                PlacesView()
+            }
         }
-        .inspector(isPresented: $model.cliOpen) {
+        .inspector(isPresented: Binding(get: { model.cliOpen && (model.place == .chat || model.place == .imagine) }, set: { model.cliOpen = $0 })) {
             CLIPane()
                 .inspectorColumnWidth(min: 300, ideal: 380, max: 520)
         }
@@ -25,6 +29,12 @@ struct RootView: View {
         .safeAreaInset(edge: .bottom) {
             if !model.gateTitle.isEmpty {
                 GateBar()
+            }
+        }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                model.dueAutomation()
             }
         }
     }

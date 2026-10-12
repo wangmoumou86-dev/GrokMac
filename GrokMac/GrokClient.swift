@@ -21,6 +21,7 @@ enum GrokClient {
         tier: ReplyTier,
         mode: AgentMode,
         surface: ChatSurface,
+        note: String = "",
         onDelta: @escaping @MainActor (String) -> Void
     ) async throws {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -41,7 +42,7 @@ enum GrokClient {
             "stream": true,
             "temperature": tier.temperature,
             "max_tokens": tier.maxTokens,
-            "messages": [["role": "system", "content": systemPrompt(tier: tier, mode: mode, surface: surface)]] + prior,
+            "messages": [["role": "system", "content": systemPrompt(tier: tier, mode: mode, surface: surface) + (note.isEmpty ? "" : "\n" + note)]] + prior,
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
@@ -115,6 +116,7 @@ enum GrokClient {
         mode: AgentMode,
         autoRun: Bool,
         network: Bool,
+        note: String = "",
         onTool: @escaping @MainActor (ToolTrace) -> Void,
         onGate: @escaping @MainActor (String, String, String) async -> String,
         onDelta: @escaping @MainActor (String) -> Void
@@ -129,6 +131,7 @@ enum GrokClient {
             You are Grok, a coding agent with Codex and Claude Code style tools: bash, read_file, write_file, edit_file, apply_patch, glob, grep, codebase_search, web_search, web_fetch, todo_write, generate_image, ask_user, undo, run_tests, open_pr.
             Paths are relative to the selected project. Never claim a change unless a tool result says so.
             \(modeLine)
+            \(note)
             Use ask_user when you need a decision. Use run_tests after code changes. Use apply_patch for multi-line edits.
             \(brief.isEmpty ? "" : "Project notes:\n\(brief)")
             """,
@@ -286,5 +289,24 @@ enum GrokClient {
         var parameters: [String: Any] = ["type": "object", "properties": properties]
         if !required.isEmpty { parameters["required"] = required }
         return ["type": "function", "function": ["name": name, "description": description, "parameters": parameters]]
+    }
+
+    static func imagine(key: String, prompt: String) async throws -> String {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw GrokClientError.missingKey }
+        for model in ["grok-imagine-image-2.0", "grok-imagine-image"] {
+            var request = URLRequest(url: URL(string: "https://api.x.ai/v1/images/generations")!)
+            request.httpMethod = "POST"
+            request.timeoutInterval = 60
+            request.setValue("Bearer \(trimmed)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: ["model": model, "prompt": String(prompt.prefix(2000)), "n": 1])
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else { continue }
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let rows = json?["data"] as? [[String: Any]]
+            if let url = rows?.first?["url"] as? String, !url.isEmpty { return url }
+        }
+        throw GrokClientError.badStatus(-1, "没有生成图片。")
     }
 }

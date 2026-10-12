@@ -10,6 +10,14 @@ final class AppModel {
     var tier: ReplyTier
     var mode: AgentMode
     var cliOpen: Bool
+    var place: AppPlace = .chat
+    var hubTab = "connectors"
+    var botsOpen = true
+    var connected: [String] = ["github"]
+    var bots: [GrokBot] = []
+    var skills: [GrokSkill] = GrokCatalog.defaultSkills
+    var automations: [GrokAutomation] = []
+    var activeBotID: UUID?
     var busy = false
     var showPalette = false
     var needsKey = false
@@ -40,6 +48,15 @@ final class AppModel {
             mode = .code
             cliOpen = true
         }
+        if let extra = Self.loadExtra() {
+            place = extra.place
+            hubTab = extra.hubTab
+            connected = extra.connected
+            bots = extra.bots
+            skills = extra.skills.isEmpty ? GrokCatalog.defaultSkills : extra.skills
+            automations = extra.automations
+            activeBotID = extra.activeBotID
+        }
         needsKey = KeychainStore.load().isEmpty
     }
 
@@ -51,11 +68,13 @@ final class AppModel {
         let session = ChatSession.fresh()
         sessions.insert(session, at: 0)
         activeID = session.id
+        place = .chat
         scheduleSave()
     }
 
     func select(_ id: UUID) {
         activeID = id
+        place = .chat
         scheduleSave()
     }
 
@@ -212,11 +231,17 @@ final class AppModel {
         let chosenTier = tier
         let chosenMode = mode
         let key = KeychainStore.load()
+        let imagine = place == .imagine && surface == .web
+        let note = contextNote()
         chatTask?.cancel()
         chatTask = Task { @MainActor [weak self] in
             guard let self else { return }
             if surface == .cli {
-                await self.runTools(sessionID: sessionID, messageID: assistantID, history: history, key: key)
+                await self.runTools(sessionID: sessionID, messageID: assistantID, history: history, key: key, note: note)
+                return
+            }
+            if imagine {
+                await self.runImagine(sessionID: sessionID, messageID: assistantID, prompt: text, key: key)
                 return
             }
             var acc = ""
@@ -226,7 +251,8 @@ final class AppModel {
                     history: history,
                     tier: chosenTier,
                     mode: chosenMode,
-                    surface: surface
+                    surface: surface,
+                    note: note
                 ) { chunk in
                     acc += chunk
                     self.replaceAssistant(sessionID: sessionID, messageID: assistantID, content: acc, pending: true, error: false)
@@ -253,7 +279,19 @@ final class AppModel {
         }
     }
 
-    private func runTools(sessionID: UUID, messageID: UUID, history: [ChatMessage], key: String) async {
+    private func runImagine(sessionID: UUID, messageID: UUID, prompt: String, key: String) async {
+        do {
+            let url = try await GrokClient.imagine(key: key, prompt: prompt)
+            finish(sessionID: sessionID, messageID: messageID, content: "![生成的图片](\(url))", error: false)
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? "没有生成图片。"
+            finish(sessionID: sessionID, messageID: messageID, content: message, error: true)
+            if key.isEmpty { needsKey = true }
+        }
+        busy = false
+    }
+
+    private func runTools(sessionID: UUID, messageID: UUID, history: [ChatMessage], key: String, note: String) async {
         guard let access = ProjectAccess.open() else {
             finish(sessionID: sessionID, messageID: messageID, content: "先在设置（⌘,）里选择工程文件夹。终端里的工具只会改那个目录。", error: true)
             busy = false
@@ -269,6 +307,7 @@ final class AppModel {
                 mode: mode,
                 autoRun: autoRun,
                 network: allowNetwork,
+                note: note,
                 onTool: { trace in
                     self.upsertTool(sessionID: sessionID, before: messageID, trace: trace)
                 },
@@ -387,9 +426,56 @@ final class AppModel {
             let url = Self.storeURL()
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try data.write(to: url, options: .atomic)
+            let extra = WorkspaceExtra(place: place, hubTab: hubTab, connected: connected, bots: bots, skills: skills, automations: automations, activeBotID: activeBotID)
+            if let extraData = try? JSONEncoder().encode(extra) {
+                UserDefaults.standard.set(extraData, forKey: "grok.workspace")
+            }
         } catch {
             // The next edit retries the write.
         }
+    }
+
+    private static func loadExtra() -> WorkspaceExtra? {
+        guard let data = UserDefaults.standard.data(forKey: "grok.workspace") else { return nil }
+        return try? JSONDecoder().decode(WorkspaceExtra.self, from: data)
+    }
+
+    func contextNote() -> String {
+        var lines: [String] = []
+        if let bot = bots.first(where: { $0.id == activeBotID }) {
+            lines.append("Active bot \(bot.name): \(bot.prompt)")
+        }
+        let onSkills = skills.filter(\.on).map { "\($0.name): \($0.text)" }
+        if !onSkills.isEmpty { lines.append(onSkills.joined(separator: "\n")) }
+        if !connected.isEmpty { lines.append("Connected: \(connected.joined(separator: ", ")). GitHub can be used with gh. Do not invent mail or files for other accounts.") }
+        return lines.joined(separator: "\n")
+    }
+
+    func toggleConnector(_ id: String) {
+        if connected.contains(id) { connected.removeAll { $0 == id } } else { connected.append(id) }
+        scheduleSave()
+    }
+
+    func addBot(name: String, prompt: String) {
+        let bot = GrokBot(id: UUID(), name: String((name.isEmpty ? "Bot" : name).prefix(40)), prompt: String(prompt.prefix(2000)))
+        bots.append(bot)
+        activeBotID = bot.id
+        place = .chat
+        scheduleSave()
+    }
+
+    func addAutomation(name: String, prompt: String, everyHours: Int) {
+        automations.append(GrokAutomation(id: UUID(), name: String((name.isEmpty ? "Automation" : name).prefix(40)), prompt: String(prompt.prefix(2000)), everyHours: min(168, max(1, everyHours)), enabled: true, lastRun: .now))
+        scheduleSave()
+    }
+
+    func dueAutomation() {
+        guard !busy, let index = automations.firstIndex(where: { $0.enabled && Date().timeIntervalSince($0.lastRun) >= Double($0.everyHours) * 3600 }) else { return }
+        let prompt = automations[index].prompt
+        automations[index].lastRun = .now
+        place = .chat
+        scheduleSave()
+        send(prompt, surface: .web)
     }
 
     private static func load() -> Persisted? {
@@ -410,4 +496,14 @@ private struct Persisted: Codable {
     var tier: ReplyTier
     var mode: AgentMode
     var cliOpen: Bool
+}
+
+private struct WorkspaceExtra: Codable {
+    var place: AppPlace
+    var hubTab: String
+    var connected: [String]
+    var bots: [GrokBot]
+    var skills: [GrokSkill]
+    var automations: [GrokAutomation]
+    var activeBotID: UUID?
 }
