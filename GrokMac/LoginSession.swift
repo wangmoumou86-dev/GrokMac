@@ -106,6 +106,22 @@ enum LoginSession {
         Task { await exchange(code) }
     }
 
+    /// Accepts a code pasted by the user from the consent page.
+    /// Takes a bare code, a "code#state" pair, or a full callback URL.
+    static func submit(pasted raw: String) {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        var code = text
+        if let parts = URLComponents(string: text),
+           let item = parts.queryItems?.first(where: { $0.name == "code" })?.value {
+            code = item
+        } else if let hash = text.firstIndex(of: "#") {
+            code = String(text[..<hash])
+        }
+        finished = false
+        Task { await exchange(code) }
+    }
+
     private static func exchange(_ code: String) async {
         var request = URLRequest(url: URL(string: "https://auth.x.ai/oauth2/token")!)
         request.httpMethod = "POST"
@@ -146,7 +162,7 @@ enum LoginSession {
         listener?.cancel()
         listener = nil
         let callback = done
-        done = nil
+        if ok { done = nil }
         callback?(ok)
     }
 

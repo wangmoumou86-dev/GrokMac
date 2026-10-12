@@ -123,6 +123,9 @@ private struct PaletteSheet: View {
 
 private struct LoginGate: View {
     @Environment(AppModel.self) private var model
+    @State private var waiting = false
+    @State private var pasted = ""
+    @State private var failed = false
 
     var body: some View {
         ZStack {
@@ -136,12 +139,32 @@ private struct LoginGate: View {
                 Text("打开官方授权页，用 X、Google 或 Apple")
                     .foregroundStyle(.secondary)
                 Button("登录") {
+                    failed = false
+                    waiting = true
                     LoginSession.start { ok in
-                        if ok { model.showLogin = false }
+                        if ok { model.showLogin = false } else { failed = true }
                     }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+                if waiting {
+                    Text("授权后如果页面给了一串码，粘贴到这里")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        TextField("授权码", text: $pasted)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 280)
+                            .onSubmit(submitCode)
+                        Button("提交", action: submitCode)
+                            .disabled(pasted.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    if failed {
+                        Text("登录没有成功，请重新点「登录」再试一次")
+                            .font(.callout)
+                            .foregroundStyle(.red)
+                    }
+                }
                 Button("暂时跳过") {
                     model.showLogin = false
                 }
@@ -150,5 +173,11 @@ private struct LoginGate: View {
             }
             .padding(32)
         }
+    }
+
+    private func submitCode() {
+        failed = false
+        LoginSession.submit(pasted: pasted)
+        pasted = ""
     }
 }
