@@ -58,6 +58,7 @@ struct SidebarView: View {
                                 SidebarRow(title: bot.name, selected: model.activeBotID == bot.id && model.place == .chat)
                             }
                             .buttonStyle(.plain)
+                            .listRowInsets(Self.rowInsets)
                         }
                     }
                 }
@@ -70,6 +71,7 @@ struct SidebarView: View {
                                 SidebarRow(title: session.title, selected: session.id == model.activeID && model.place == .chat)
                             }
                             .buttonStyle(.plain)
+                            .listRowInsets(Self.rowInsets)
                             .contextMenu {
                                 Button(tr("删除", "Delete"), role: .destructive) { model.remove(session.id) }
                             }
@@ -124,6 +126,9 @@ struct SidebarView: View {
         .navigationTitle("Grok")
     }
 
+    /// grok.com nav rows: 36pt tall on a 40pt pitch.
+    private static let rowInsets = EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0)
+
     private func placeButton(_ place: AppPlace, _ symbol: String) -> some View {
         Button {
             model.place = place
@@ -131,6 +136,7 @@ struct SidebarView: View {
             SidebarRow(title: place.title, symbol: symbol, selected: model.place == place)
         }
         .buttonStyle(.plain)
+        .listRowInsets(Self.rowInsets)
     }
 
     private var groups: [DayGroup] {

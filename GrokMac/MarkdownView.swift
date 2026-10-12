@@ -139,8 +139,15 @@ private func headingLine(_ line: String) -> Block? {
 }
 
 private func markdown(_ text: String) -> AttributedString {
-    (try? AttributedString(
+    var value = (try? AttributedString(
         markdown: text,
         options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
     )) ?? AttributedString(text)
+    // Inline `code` like grok.com: mono, orange text on a 10% orange tint.
+    for run in value.runs where run.inlinePresentationIntent?.contains(.code) == true {
+        value[run.range].font = Theme.mono(14)
+        value[run.range].foregroundColor = Theme.inlineCode
+        value[run.range].backgroundColor = Theme.inlineCodeBackground
+    }
+    return value
 }

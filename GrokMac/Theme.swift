@@ -25,6 +25,9 @@ enum Theme {
     static let buttonFilledFg = dynamic(light: 0xFCFCFC, dark: 0x050505)
     static let buttonDisabled = dynamic(light: 0x0F0D0A, lightAlpha: 0.08, dark: 0xFCFCFC, darkAlpha: 0.10)
     static let link = dynamic(light: 0x3F5FD9, dark: 0x8EA5F0)
+    /// Inline code, measured on grok.com: rgb(158,58,0) / rgb(236,147,105) on a 10% orange tint.
+    static let inlineCode = dynamic(light: 0x9E3A00, dark: 0xEC9369)
+    static let inlineCodeBackground = dynamic(light: 0xE8622A, lightAlpha: 0.10, dark: 0xEC9369, darkAlpha: 0.12)
     static let danger = dynamic(light: 0xB3242F, dark: 0xE15C64)
     static let scrim = Color.black.opacity(0.94)
 

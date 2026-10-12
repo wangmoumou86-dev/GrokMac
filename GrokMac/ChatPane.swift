@@ -24,21 +24,24 @@ struct ChatPane: View {
     var body: some View {
         Group {
             if visible.isEmpty {
-                VStack(spacing: 24) {
+                // grok.com places the greeting and composer about a quarter down the page, not centered.
+                VStack(spacing: 32) {
+                    Spacer(minLength: 0)
                     Text(model.place == .imagine ? tr("想象点什么？", "What should we imagine?") : tr("今天有什么可以帮你？", "How can I help you today?"))
                         .font(Theme.ui(24, .semibold))
                         .tracking(-0.48)
                         .foregroundStyle(Theme.fg1)
                     composer
                         .frame(maxWidth: Theme.composerWidth)
+                    Spacer(minLength: 0)
+                    Spacer(minLength: 0)
                 }
-                .padding(.bottom, 80)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(24)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 24) {
+                        LazyVStack(alignment: .leading, spacing: 38) {
                             ForEach(visible) { message in
                                 MessageRow(message: message)
                                     .id(message.id)
@@ -69,7 +72,7 @@ struct ChatPane: View {
                 .safeAreaInset(edge: .bottom) {
                     composer
                         .padding(.horizontal, 24)
-                        .padding(.bottom, 16)
+                        .padding(.bottom, 24)
                         .frame(maxWidth: Theme.composerWidth + 48)
                         .frame(maxWidth: .infinity)
                         .background(alignment: .bottom) {
