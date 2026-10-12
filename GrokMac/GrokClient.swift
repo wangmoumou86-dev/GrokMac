@@ -352,6 +352,59 @@ enum GrokClient {
         return nil
     }
 
+    /// Reads that need approval even though they are read-only: the home folder root listing,
+    /// credential dotfiles/dirs, keychains, key/token/secret-like file names, and anything outside
+    /// the working folder. Reads inside the working folder stay automatic.
+    static func sensitiveRead(name: String, arguments: String, root: URL) -> String? {
+        let args = jsonObject(arguments)
+        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        let base = root.standardizedFileURL.path
+        var candidates: [String] = []
+        var explicitPaths: [String] = []
+        switch name {
+        case "bash", "run_tests":
+            let command = (args["command"] as? String) ?? ""
+            let separators = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ";|&()<>=\"'`"))
+            candidates = command.components(separatedBy: separators).filter { !$0.isEmpty }
+        case "read_file", "glob", "grep", "codebase_search":
+            for key in ["path", "file", "directory", "dir", "pattern", "glob"] {
+                if let value = args[key] as? String, !value.isEmpty { candidates.append(value); explicitPaths.append(value) }
+            }
+        default:
+            return nil
+        }
+        let systemPrefixes = ["/usr/", "/bin/", "/sbin/", "/opt/homebrew/", "/dev/null", "/dev/std", "/System/", "/Applications/Xcode.app/", "/Library/Developer/"]
+        for raw in candidates {
+            var token = raw
+            for prefix in ["$HOME", "${HOME}"] where token.hasPrefix(prefix) { token = home + token.dropFirst(prefix.count) }
+            if token == "~" || token.hasPrefix("~/") { token = home + token.dropFirst(1) }
+            let lower = token.lowercased()
+            let trimmed = token.hasSuffix("/") && token.count > 1 ? String(token.dropLast()) : token
+            if trimmed == home || trimmed == "/Users" || trimmed == "/" { return raw }
+            let leaf = (lower as NSString).lastPathComponent
+            let components = lower.split(separator: "/").map(String.init)
+            let dotDirs: Set<String> = [".ssh", ".gnupg", ".aws", ".config", ".secrets", ".netrc", ".kube", ".docker"]
+            if components.contains(where: { dotDirs.contains($0) || $0.hasPrefix(".env") }) { return raw }
+            if lower.contains("keychains") || lower.contains("keychain-db") { return raw }
+            let looksLikePath = token.contains("/") || token.contains(".") || explicitPaths.contains(raw)
+            if looksLikePath {
+                let patterns = [#"key"#, #"\.pem$"#, #"^id_"#, #"token"#, #"secret"#, #"credential"#]
+                if patterns.contains(where: { leaf.range(of: $0, options: .regularExpression) != nil }), !leaf.hasSuffix(".swift") {
+                    return raw
+                }
+            }
+            if token.hasPrefix("/") {
+                if systemPrefixes.contains(where: { token.hasPrefix($0) }) || token == "/tmp" || token.hasPrefix("/tmp/") || token.hasPrefix("/private/tmp/") { continue }
+                let path = URL(fileURLWithPath: token).standardizedFileURL.path
+                if path != base, !path.hasPrefix(base + "/") { return raw }
+            } else if explicitPaths.contains(raw), raw.hasPrefix("..") {
+                let path = root.appendingPathComponent(raw).standardizedFileURL.path
+                if path != base, !path.hasPrefix(base + "/") { return raw }
+            }
+        }
+        return nil
+    }
+
     private static func escalation(name: String, arguments: String, root: URL, sandbox: String, approval: String) -> String? {
         let command = (jsonObject(arguments)["command"] as? String) ?? ""
         let writes = mutating.contains(name) || name == "todo_write" || name == "undo"
@@ -363,6 +416,9 @@ enum GrokClient {
         }
         if approval != "never", ["write_file", "edit_file", "apply_patch"].contains(name), let outside = outsidePath(arguments, root: root) {
             return "要改工程以外的文件：\(outside)。允许？"
+        }
+        if approval != "never", let what = sensitiveRead(name: name, arguments: arguments, root: root) {
+            return "要读取敏感位置：\(what)。允许这一次？"
         }
         if networked.contains(name) || ((name == "bash" || name == "run_tests") && needsNetwork(command)) {
             return approval == "never" ? nil : "需要联网。允许这一次？"
