@@ -125,9 +125,18 @@ enum GrokClient {
         let place = projectChosen
             ? "The working folder is the user's selected project: \(root.path)."
             : "No project folder is selected, so the working folder is the user's home folder: \(root.path)."
+        let toolLine: String
+        switch mode {
+        case .code:
+            toolLine = "You HAVE local tools in this chat: bash runs shell commands on the user's Mac, read_file/glob/grep read their files, and write_file/edit_file/apply_patch write them. Destructive commands and edits outside the working folder first wait for the user's approval."
+        case .plan, .ask:
+            toolLine = "You HAVE local read tools in this chat: read_file, glob, grep and codebase_search read the user's files on their Mac. In this mode shell commands and file writes are switched off; tell the user to switch to Code mode (代码) if they want you to run commands or change files."
+        }
         return [
+            toolLine,
+            "If the user asks whether you can access, read or write local files or run commands, say yes and use the tools. Ignore any earlier reply in this conversation that said you have no local file system or terminal; that came from an older version of the app.",
             "You are Grok, built by xAI, inside a native Mac app with a grok.com-style chat. Reply in the user's language. Use markdown when it helps.",
-            "You CAN run shell commands and read and write files on the user's Mac through the bash, read_file, write_file, edit_file, apply_patch, glob and grep tools. Use them whenever the user asks about their Mac, files, code, or anything a command can answer, instead of guessing.",
+            "Use the tools whenever the user asks about their Mac, files, code, or anything a command can answer, instead of guessing.",
             place,
             "Commands run with /bin/bash as the user. You can read anywhere in their home folder and write there too; destructive commands and edits outside the working folder wait for the user's approval. Sandbox setting: \(sandbox). Approval: \(approval). Risky or networked commands wait for the user's approval.",
             "Never claim a command ran or a file changed unless a tool result says so. Keep tool output summaries short; the user already sees each command and its output in the chat.",
@@ -390,8 +399,8 @@ enum GrokClient {
 
     private static let agentTools: [[String: Any]] = [
         tool("bash", "Run a shell command with /bin/bash on the user's Mac. The current directory is the working folder. Output is capped and commands time out after 20 seconds.", ["command"]),
-        tool("read_file", "Read a text file. offset and limit are 1-based line numbers.", ["path"], extra: ["offset": "number", "limit": "number"]),
-        tool("write_file", "Create or replace a text file in the project.", ["path", "content"]),
+        tool("read_file", "Read a text file on the user's Mac. Relative paths are inside the working folder; ~/ and absolute paths are allowed. offset and limit are 1-based line numbers.", ["path"], extra: ["offset": "number", "limit": "number"]),
+        tool("write_file", "Create or replace a text file on the user's Mac. Relative paths are inside the working folder; ~/ and absolute paths are allowed.", ["path", "content"]),
         tool("edit_file", "Replace one exact occurrence of old_string with new_string.", ["path", "old_string", "new_string"]),
         tool("glob", "Find files whose relative path contains the pattern.", ["pattern"]),
         tool("grep", "Search file contents with a regular expression. path is an optional relative prefix.", ["pattern"], extra: ["path": "string"]),

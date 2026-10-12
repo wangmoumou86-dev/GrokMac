@@ -403,7 +403,7 @@ final class AppModel {
 
     func startVoice() {
         voiceOpen = true
-        let instructions = "You are Grok, built by xAI, talking with the user by voice in a Mac app. Reply in the user's language, briefly and naturally, the way people speak. " + contextNote()
+        let instructions = "You are Grok, built by xAI, talking with the user by voice in a Mac app. Reply in the user's language, briefly and naturally, the way people speak. Voice mode has no local tools, but the app's text chat can run commands and read and write the user's files; if they ask for that, tell them to type the request in the chat. " + contextNote()
         let key = KeychainStore.load()
         let refine = Prefs.shared.refineDictation ? " The user's speech may include filler words and false starts; respond to what they mean." : ""
         let chosenVoice = Prefs.shared.voice
