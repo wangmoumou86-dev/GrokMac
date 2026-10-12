@@ -10,6 +10,13 @@ struct ChatPane: View {
     @State private var dropping = false
     @State private var modelHover = false
 
+    /// The tool card that is waiting for approval or an answer; the inline GateBar sits under it.
+    /// Falls back to the last message when the gate has no card (e.g. a plain question).
+    private var gateAnchor: UUID? {
+        guard !model.gateTitle.isEmpty else { return nil }
+        return visible.last(where: { $0.role == .tool && ($0.tool?.status == "approval" || $0.tool?.status == "ask") })?.id ?? visible.last?.id
+    }
+
     private var visible: [ChatMessage] {
         model.active.messages.filter { $0.role != .meta }
     }
@@ -35,12 +42,21 @@ struct ChatPane: View {
                             ForEach(visible) { message in
                                 MessageRow(message: message)
                                     .id(message.id)
+                                if message.id == gateAnchor {
+                                    GateBar(inline: true)
+                                        .id("gate")
+                                        .padding(.top, -12)
+                                }
                             }
                         }
                         .padding(.vertical, 24)
                         .padding(.horizontal, 24)
                         .frame(maxWidth: Theme.contentWidth + 48)
                         .frame(maxWidth: .infinity)
+                    }
+                    .onChange(of: model.gateTitle) { _, title in
+                        guard !title.isEmpty else { return }
+                        withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo("gate", anchor: .bottom) }
                     }
                     .onChange(of: visible.last?.content) { _, _ in
                         if Prefs.shared.autoScroll, let id = visible.last?.id {
