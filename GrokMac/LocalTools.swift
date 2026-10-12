@@ -48,26 +48,15 @@ enum LocalTools {
         }
     }
 
-    /// Relative paths resolve against the working folder. Absolute and ~ paths may point anywhere in the
-    /// user's home folder; writes outside the project are approved first in GrokClient.escalation.
+    /// Relative paths resolve against the working folder; absolute and ~ paths may point anywhere.
+    /// Scope is enforced before a tool runs, in GrokClient.escalation: writes outside the working folder
+    /// and sensitive reads wait for the user's approval, so an approved write to /tmp (a symlink to
+    /// /private/tmp) or any other folder actually goes through.
     static func resolve(_ root: URL, _ rel: String) throws -> URL {
         var cleaned = rel.replacingOccurrences(of: "\\", with: "/").replacingOccurrences(of: "\0", with: "")
         if cleaned == "~" || cleaned.hasPrefix("~/") { cleaned = NSHomeDirectory() + cleaned.dropFirst() }
         let base = root.standardizedFileURL
-        let target = URL(fileURLWithPath: cleaned.isEmpty ? "." : cleaned, relativeTo: base).standardizedFileURL
-        let allowed = [base.path, URL(fileURLWithPath: NSHomeDirectory()).standardizedFileURL.path]
-        func inside(_ path: String) -> Bool {
-            allowed.contains { path == $0 || path.hasPrefix($0 + "/") }
-        }
-        guard inside(target.path) else {
-            throw ToolFailure("只能访问你的用户目录里的文件。")
-        }
-        if FileManager.default.fileExists(atPath: target.path) {
-            guard inside(target.resolvingSymlinksInPath().path) else {
-                throw ToolFailure("只能访问你的用户目录里的文件。")
-            }
-        }
-        return target
+        return URL(fileURLWithPath: cleaned.isEmpty ? "." : cleaned, relativeTo: base).standardizedFileURL
     }
 
     private static func readFile(root: URL, path: String, offset: Int, limit: Int) -> (String, Bool) {
