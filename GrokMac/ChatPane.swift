@@ -19,7 +19,7 @@ struct ChatPane: View {
                 VStack(spacing: 20) {
                     Text(model.place == .imagine ? "Imagine" : "Grok")
                         .font(.system(size: 40, weight: .medium))
-                    Text(model.place == .imagine ? (model.imagineVideo ? "描述你要的视频" : "描述你要的图片") : "左边是网页端，右边终端改这台 Mac 上的工程")
+                    Text(model.place == .imagine ? (model.imagineVideo ? "描述你要的视频" : "描述你要的图片") : "可以直接让 Grok 在这台 Mac 上运行命令、读写工程文件")
                         .foregroundStyle(.secondary)
                     composer
                         .frame(maxWidth: 720)
@@ -65,12 +65,6 @@ struct ChatPane: View {
                     Image(systemName: "waveform")
                 }
                 .help("朗读上一条回答")
-                Button {
-                    model.cliOpen.toggle()
-                } label: {
-                    Image(systemName: "terminal")
-                }
-                .help("终端")
             }
         }
         .sheet(isPresented: Binding(get: { model.voiceOpen }, set: { if !$0 { model.endVoice() } })) {

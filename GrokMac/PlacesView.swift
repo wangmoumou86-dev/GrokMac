@@ -66,7 +66,7 @@ private struct AutomationsPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Automations").font(.largeTitle)
-                Text("应用开着的时候，到点会在本地开一轮对话。终端里的工具仍然只改你选的文件夹。").foregroundStyle(.secondary)
+                Text("应用开着的时候，到点会在本地开一轮对话。对话里的命令和文件工具仍然只改你选的文件夹。").foregroundStyle(.secondary)
                 TextField("名称", text: $name).textFieldStyle(.roundedBorder)
                 TextField("到点要做的事", text: $prompt, axis: .vertical).textFieldStyle(.roundedBorder)
                 Stepper("每 \(hours) 小时", value: $hours, in: 1...168)
@@ -144,7 +144,7 @@ private struct ConnectorsList: View {
             ForEach(GrokCatalog.connectors.filter { $0.group == "advertising" && matches($0, q) }) { item in
                 row(item)
             }
-            Text("GitHub 可以在右边的本地终端里用 gh 搜仓库。其他账号点 Add 只是记在这台 Mac 上，没有官方令牌就读不到邮件和网盘。")
+            Text("GitHub 可以让 Grok 在对话里用 gh 搜仓库。其他账号点 Add 只是记在这台 Mac 上，没有官方令牌就读不到邮件和网盘。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top, 8)

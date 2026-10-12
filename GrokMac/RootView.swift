@@ -16,10 +16,6 @@ struct RootView: View {
                 PlacesView()
             }
         }
-        .inspector(isPresented: Binding(get: { model.cliOpen && (model.place == .chat || model.place == .imagine) }, set: { model.cliOpen = $0 })) {
-            CLIPane()
-                .inspectorColumnWidth(min: 300, ideal: 380, max: 520)
-        }
         .sheet(isPresented: $model.showPalette) {
             PaletteSheet()
         }
@@ -81,7 +77,7 @@ private struct PaletteSheet: View {
     @State private var query = ""
 
     private var items: [String] {
-        let all = ["新对话", "显示终端", "Auto", "Fast", "Expert", "Heavy", "代码模式", "计划模式", "提问模式", "登录"]
+        let all = ["新对话", "Auto", "Fast", "Expert", "Heavy", "代码模式", "计划模式", "提问模式", "登录"]
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         guard !q.isEmpty else { return all }
         return all.filter { $0.lowercased().contains(q) }
@@ -106,7 +102,6 @@ private struct PaletteSheet: View {
     private func run(_ item: String) {
         switch item {
         case "新对话": model.newSession()
-        case "显示终端": model.cliOpen = true
         case "Fast": model.tier = .fast
         case "Auto": model.tier = .auto
         case "Expert": model.tier = .expert

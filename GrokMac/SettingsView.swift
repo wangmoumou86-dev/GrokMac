@@ -46,7 +46,7 @@ struct SettingsView: View {
                 Text(model.projectLabel)
                     .font(.caption)
                     .textSelection(.enabled)
-                Text("终端里的 bash、读写和搜索都作用在这个文件夹。别的目录不会被改。")
+                Text("对话里 Grok 运行的命令、读写和搜索都作用在这个文件夹。别的目录不会被改。没选时只能用应用自己的沙盒目录。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button("选择文件夹") { model.chooseProject() }

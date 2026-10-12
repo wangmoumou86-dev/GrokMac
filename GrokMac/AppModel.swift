@@ -9,7 +9,6 @@ final class AppModel {
     var activeID: UUID
     var tier: ReplyTier
     var mode: AgentMode
-    var cliOpen: Bool
     var place: AppPlace = .chat
     var hubTab = "connectors"
     var botsOpen = true
@@ -54,14 +53,12 @@ final class AppModel {
             activeID = stored.sessions.contains(where: { $0.id == stored.activeID }) ? stored.activeID : stored.sessions[0].id
             tier = stored.tier
             mode = stored.mode
-            cliOpen = stored.cliOpen
         } else {
             let session = ChatSession.fresh()
             sessions = [session]
             activeID = session.id
             tier = .fast
             mode = .code
-            cliOpen = true
         }
         if let extra = Self.loadExtra() {
             place = extra.place
@@ -240,7 +237,7 @@ final class AppModel {
             return done("已切换到 \(next.title) · \(next.hint)")
         case "mode":
             guard !arg.isEmpty else {
-                return done("当前模式 \(mode.rawValue)\n可选：code、plan、ask。终端里也可以 Shift+Tab。")
+                return done("当前模式 \(mode.rawValue)\n可选：code、plan、ask。")
             }
             guard let next = AgentMode(rawValue: arg.lowercased()) else {
                 return done("用法：/mode code|plan|ask")
@@ -328,49 +325,7 @@ final class AppModel {
                 await self.runImagine(sessionID: sessionID, messageID: assistantID, prompt: text, key: key)
                 return
             }
-            if surface == .cli || ProjectStore.url() != nil {
-                await self.runTools(sessionID: sessionID, messageID: assistantID, history: history, key: key, note: note)
-                return
-            }
-            var acc = ""
-            do {
-                try await GrokClient.stream(
-                    key: key,
-                    history: history,
-                    tier: chosenTier,
-                    mode: chosenMode,
-                    surface: surface,
-                    note: note,
-                    search: search
-                ) { event in
-                    switch event {
-                    case .text(let chunk):
-                        acc += chunk
-                        self.replaceAssistant(sessionID: sessionID, messageID: assistantID, content: acc, pending: true, error: false)
-                    case .citations(let links):
-                        self.updateMessage(sessionID: sessionID, messageID: assistantID) { $0.citations = links }
-                    case .reasoning(let chunk):
-                        self.updateMessage(sessionID: sessionID, messageID: assistantID) { $0.reasoning = ($0.reasoning ?? "") + chunk }
-                    }
-                }
-                if Task.isCancelled {
-                    self.finish(sessionID: sessionID, messageID: assistantID, content: acc.isEmpty ? "已停止。" : acc, error: false)
-                } else if acc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    self.finish(sessionID: sessionID, messageID: assistantID, content: "没有返回内容。", error: true)
-                } else {
-                    self.finish(sessionID: sessionID, messageID: assistantID, content: acc, error: false)
-                }
-            } catch {
-                let cancelled = error is CancellationError || (error as? URLError)?.code == .cancelled
-                if cancelled {
-                    self.finish(sessionID: sessionID, messageID: assistantID, content: acc.isEmpty ? "已停止。" : acc, error: false)
-                } else {
-                    let message = (error as? LocalizedError)?.errorDescription ?? "Grok 没有完成回答。"
-                    let combined = acc.isEmpty ? message : acc + "\n\n" + message
-                    self.finish(sessionID: sessionID, messageID: assistantID, content: combined, error: true)
-                }
-            }
-            self.busy = false
+            await self.runTools(sessionID: sessionID, messageID: assistantID, history: history, key: key, note: note, tier: chosenTier, mode: chosenMode, search: search)
         }
     }
 
@@ -436,15 +391,12 @@ final class AppModel {
         busy = false
     }
 
-    private func runTools(sessionID: UUID, messageID: UUID, history: [ChatMessage], key: String, note: String) async {
-        guard let access = ProjectAccess.open() else {
-            finish(sessionID: sessionID, messageID: messageID, content: "先在设置（⌘,）里选择工程文件夹。终端里的工具只会改那个目录。", error: true)
-            busy = false
-            return
-        }
-        defer { access.close() }
-        var root = access.root
-        if useWorktree {
+    /// Working folder for chat tools: the selected project, or the app's sandbox home when none is chosen.
+    private func runTools(sessionID: UUID, messageID: UUID, history: [ChatMessage], key: String, note: String, tier: ReplyTier, mode: AgentMode, search: [String]) async {
+        let access = ProjectAccess.open()
+        defer { access?.close() }
+        var root = access?.root ?? FileManager.default.homeDirectoryForCurrentUser
+        if let access, useWorktree {
             guard let made = LocalTools.makeWorktree(root: access.root) else {
                 finish(sessionID: sessionID, messageID: messageID, content: "没能建 Git worktree。这个文件夹得是一个 Git 仓库。", error: true)
                 busy = false
@@ -458,19 +410,29 @@ final class AppModel {
                 key: key,
                 history: history,
                 root: root,
+                projectChosen: access != nil,
+                tier: tier,
                 mode: mode,
                 sandbox: sandboxMode,
                 approval: approvalPolicy,
                 note: note,
+                search: search,
                 onTool: { trace in
                     self.upsertTool(sessionID: sessionID, before: messageID, trace: trace)
                 },
                 onGate: { title, detail, kind in
                     await self.waitGate(title: title, detail: detail, kind: kind)
                 },
-                onDelta: { chunk in
-                    acc += chunk
-                    self.replaceAssistant(sessionID: sessionID, messageID: messageID, content: acc, pending: true, error: false)
+                onEvent: { event in
+                    switch event {
+                    case .text(let chunk):
+                        acc += chunk
+                        self.replaceAssistant(sessionID: sessionID, messageID: messageID, content: acc, pending: true, error: false)
+                    case .citations(let links):
+                        self.updateMessage(sessionID: sessionID, messageID: messageID) { $0.citations = links }
+                    case .reasoning(let chunk):
+                        self.updateMessage(sessionID: sessionID, messageID: messageID) { $0.reasoning = ($0.reasoning ?? "") + chunk }
+                    }
                 }
             )
             if Task.isCancelled {
@@ -485,10 +447,11 @@ final class AppModel {
             if cancelled {
                 finish(sessionID: sessionID, messageID: messageID, content: acc.isEmpty ? "已停止。" : acc, error: false)
             } else {
-                let message = (error as? LocalizedError)?.errorDescription ?? "Grok 没有完成。"
+                let message = (error as? LocalizedError)?.errorDescription ?? "Grok 没有完成回答。"
                 finish(sessionID: sessionID, messageID: messageID, content: acc.isEmpty ? message : acc + "\n\n" + message, error: true)
             }
         }
+        if !gateTitle.isEmpty { decide("no") }
         busy = false
     }
 
@@ -581,7 +544,7 @@ final class AppModel {
                 snapshot[index].messages[messageIndex].pending = false
             }
         }
-        let box = Persisted(sessions: snapshot, activeID: activeID, tier: tier, mode: mode, cliOpen: cliOpen)
+        let box = Persisted(sessions: snapshot, activeID: activeID, tier: tier, mode: mode)
         guard let data = try? JSONEncoder().encode(box) else { return }
         do {
             let url = Self.storeURL()
@@ -671,7 +634,8 @@ private struct Persisted: Codable {
     var activeID: UUID
     var tier: ReplyTier
     var mode: AgentMode
-    var cliOpen: Bool
+    /// Old builds stored the terminal pane state here; it is read and ignored.
+    var cliOpen: Bool?
 }
 
 private struct WorkspaceExtra: Codable {

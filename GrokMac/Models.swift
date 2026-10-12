@@ -238,10 +238,8 @@ let commandHelp = """
 
 快捷键
 ⌘N           新对话
-⌘J           终端
 ⌘K           命令面板
 ⌘,           设置
-Shift+Tab    在终端里切换模式
 """
 
 struct SlashCommand: Identifiable {

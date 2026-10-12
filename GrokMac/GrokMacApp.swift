@@ -28,10 +28,6 @@ private struct GrokCommands: Commands {
             Button("新对话") { model.newSession() }
                 .keyboardShortcut("n", modifiers: .command)
         }
-        CommandGroup(after: .sidebar) {
-            Button("终端") { model.cliOpen.toggle() }
-                .keyboardShortcut("j", modifiers: .command)
-        }
         CommandMenu("会话") {
             Button("命令面板") { model.showPalette = true }
                 .keyboardShortcut("k", modifiers: .command)

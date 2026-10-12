@@ -21,52 +21,24 @@ enum GrokClient {
         case citations([String])
     }
 
-    /// Streams a reply over the Responses API: https://docs.x.ai/developers/rest-api-reference/inference/responses
-    /// The multi-agent model only works there: https://docs.x.ai/developers/model-capabilities/text/multi-agent
-    static func stream(
+    /// One streamed Responses API turn: https://docs.x.ai/developers/rest-api-reference/inference/responses
+    /// Returns every output item so reasoning (encrypted_content) and function_call items can be replayed with store=false.
+    private static func turn(
         key: String,
-        history: [ChatMessage],
-        tier: ReplyTier,
-        mode: AgentMode,
-        surface: ChatSurface,
-        note: String = "",
-        search: [String] = [],
+        model: String,
+        effort: String?,
+        input: [[String: Any]],
+        tools: [[String: Any]],
         onEvent: @escaping @MainActor (StreamEvent) -> Void
-    ) async throws {
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { throw GrokClientError.missingKey }
-
+    ) async throws -> [[String: Any]] {
         var request = URLRequest(url: URL(string: "https://api.x.ai/v1/responses")!)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(trimmed)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = tier == .heavy ? 900 : 300
-
-        let prior: [[String: Any]] = history
-            .filter { $0.role == .user || $0.role == .assistant }
-            .suffix(16)
-            .map { message in
-                let text = String(message.promptText.prefix(message.context == nil ? 6000 : 6000 + ComposerAttachment.maxPDFChars))
-                let images = message.role == .user ? message.allImages : []
-                if images.isEmpty { return ["role": message.role.rawValue, "content": text] }
-                // input_image parts: https://docs.x.ai/developers/model-capabilities/images/understanding
-                let parts: [[String: Any]] = [["type": "input_text", "text": text]]
-                    + images.map { ["type": "input_image", "image_url": $0, "detail": "high"] }
-                return ["role": "user", "content": parts]
-            }
-        var payload: [String: Any] = [
-            "model": tier.modelID,
-            "stream": true,
-            "store": false,
-            "input": [["role": "system", "content": systemPrompt(tier: tier, mode: mode, surface: surface) + (note.isEmpty ? "" : "\n" + note)]] + prior,
-        ]
-        // Server-side search tools: https://docs.x.ai/docs/guides/tools/search-tools and https://docs.x.ai/developers/tools/x-search
-        if !search.isEmpty {
-            payload["tools"] = search.map { ["type": $0] }
-        }
-        if let effort = tier.effort {
-            payload["reasoning"] = ["effort": effort]
-        }
+        request.timeoutInterval = model.contains("multi-agent") ? 900 : 300
+        var payload: [String: Any] = ["model": model, "stream": true, "store": false, "input": input]
+        if !tools.isEmpty { payload["tools"] = tools }
+        if let effort { payload["reasoning"] = ["effort": effort] }
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
@@ -79,6 +51,8 @@ enum GrokClient {
             throw GrokClientError.badStatus(http.statusCode, friendly(http.statusCode, data))
         }
 
+        var items: [[String: Any]] = []
+        var finished: [[String: Any]]?
         for try await line in bytes.lines {
             if Task.isCancelled { break }
             let trimmedLine = line.trimmingCharacters(in: .whitespaces)
@@ -88,8 +62,7 @@ enum GrokClient {
             guard let blob = raw.data(using: .utf8),
                   let json = try? JSONSerialization.jsonObject(with: blob) as? [String: Any]
             else { continue }
-            let type = json["type"] as? String ?? ""
-            switch type {
+            switch json["type"] as? String ?? "" {
             case "response.output_text.delta":
                 if let delta = json["delta"] as? String, !delta.isEmpty {
                     await MainActor.run { onEvent(.text(delta)) }
@@ -98,8 +71,12 @@ enum GrokClient {
                 if let delta = json["delta"] as? String, !delta.isEmpty {
                     await MainActor.run { onEvent(.reasoning(delta)) }
                 }
+            case "response.output_item.done":
+                if let item = json["item"] as? [String: Any] { items.append(item) }
             case "response.completed":
-                let links = citations(in: json["response"] as? [String: Any] ?? [:])
+                let body = json["response"] as? [String: Any] ?? [:]
+                finished = body["output"] as? [[String: Any]]
+                let links = citations(in: body)
                 if !links.isEmpty { await MainActor.run { onEvent(.citations(links)) } }
             case "response.failed", "error":
                 let body = (json["response"] as? [String: Any])?["error"] as? [String: Any] ?? json["error"] as? [String: Any] ?? json
@@ -109,6 +86,7 @@ enum GrokClient {
                 continue
             }
         }
+        return finished ?? items
     }
 
     /// `citations` on the response plus url_citation annotations: https://docs.x.ai/developers/tools/citations
@@ -125,25 +103,33 @@ enum GrokClient {
         return links.filter { $0.hasPrefix("http") && seen.insert($0).inserted }
     }
 
-    private static func systemPrompt(tier: ReplyTier, mode: AgentMode, surface: ChatSurface) -> String {
+    private static func systemPrompt(tier: ReplyTier, mode: AgentMode, root: URL, projectChosen: Bool, sandbox: String, approval: String) -> String {
         let modeLine: String
         switch mode {
         case .plan:
-            modeLine = "Plan mode: propose a concrete plan. Do not invent applied diffs."
+            modeLine = "Plan mode: read and inspect freely, propose a concrete plan, do not edit files."
         case .ask:
-            modeLine = "Ask mode: answer only. Do not turn it into an implementation log."
+            modeLine = "Ask mode: answer the question. You may read files and run read-only checks, but do not change anything."
         case .code:
-            modeLine = "Code mode: give code and steps they can apply themselves, clearly as suggestions."
+            modeLine = "Code mode: you may edit files and run commands to get the task done."
         }
+        let place = projectChosen
+            ? "The working folder is the user's selected project: \(root.path)."
+            : "No project folder is selected, so the working folder is the app's own sandbox home: \(root.path). Tell the user to pick a project in Settings (⌘,) if they want you to work on their files."
         return [
-            "You are Grok, built by xAI, inside a native Mac app that shows a grok.com-style chat and a Grok Build terminal together.",
-            "Both panes share one thread. Reply in the user's language. Use markdown when it helps.",
-            "You cannot read or write files on the user's computer and you cannot run their shell. Never pretend an edit or command already happened.",
-            "Surface: \(surface.rawValue). Mode: \(mode.rawValue).",
+            "You are Grok, built by xAI, inside a native Mac app with a grok.com-style chat. Reply in the user's language. Use markdown when it helps.",
+            "You CAN run shell commands and read and write files on the user's Mac through the bash, read_file, write_file, edit_file, apply_patch, glob and grep tools. Use them whenever the user asks about their Mac, files, code, or anything a command can answer, instead of guessing.",
+            place,
+            "Commands run with /bin/bash inside the macOS app sandbox, so access outside the working folder may be refused. Sandbox setting: \(sandbox). Approval: \(approval). Risky or networked commands wait for the user's approval.",
+            "Never claim a command ran or a file changed unless a tool result says so. Keep tool output summaries short; the user already sees each command and its output in the chat.",
+            "Use ask_user when you need a decision.",
             modeLine,
             tier.styleHint,
         ].joined(separator: " ")
     }
+
+    /// Set once xAI refuses client-side tools for the multi-agent model, so later turns go straight to Expert.
+    @MainActor private static var heavyToolsRefused = false
 
     private static func friendly(_ status: Int, _ data: Data) -> String {
         if status == 429 {
@@ -167,103 +153,140 @@ enum GrokClient {
         return detail.isEmpty ? "Grok 没有完成回答（\(status)）。" : "Grok 没有完成回答。\(detail)"
     }
 
+    /// The chat agent loop over the Responses API with function tools:
+    /// https://docs.x.ai/developers/tools/function-calling
     static func runAgent(
         key: String,
         history: [ChatMessage],
         root: URL,
+        projectChosen: Bool,
+        tier: ReplyTier,
         mode: AgentMode,
         sandbox: String,
         approval: String,
         note: String = "",
+        search: [String] = [],
         onTool: @escaping @MainActor (ToolTrace) -> Void,
         onGate: @escaping @MainActor (String, String, String) async -> String,
-        onDelta: @escaping @MainActor (String) -> Void
+        onEvent: @escaping @MainActor (StreamEvent) -> Void
     ) async throws {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw GrokClientError.missingKey }
-        let brief = LocalTools.projectBrief(root)
-        let modeLine = mode == .ask ? "Mode: ask. Read only." : mode == .plan ? "Mode: plan. Read only, todos allowed." : "Mode: code. Edits wait for approval unless auto-run is on."
-        var messages: [[String: Any]] = [[
-            "role": "system",
-            "content": """
-            You are Grok running as a local agent, the same loop as Codex. File tools and local commands stay inside the selected project. Do not claim a change unless a tool result says so.
-            \(modeLine)
-            Sandbox: \(sandbox). Approval: \(approval). Workspace writes and local commands proceed. Network or leaving the project waits for approval.
-            \(note)
-            Use ask_user when you need a decision. Use run_tests after code changes. Use apply_patch for multi-line edits.
-            \(brief.isEmpty ? "" : "Project notes:\n\(brief)")
-            """,
-        ]]
+        let brief = projectChosen ? LocalTools.projectBrief(root) : ""
+        var system = systemPrompt(tier: tier, mode: mode, root: root, projectChosen: projectChosen, sandbox: sandbox, approval: approval)
+        if !note.isEmpty { system += "\n" + note }
+        if !brief.isEmpty { system += "\nProject notes:\n" + brief }
+        var input: [[String: Any]] = [["role": "system", "content": system]]
         for message in history.suffix(24) {
             if message.role == .tool, let tool = message.tool {
-                messages.append(["role": "assistant", "content": String("[\(tool.name)] \(tool.input)\n\(tool.output)".prefix(4000))])
+                input.append(["role": "assistant", "content": String("[\(tool.name)] \(tool.input)\n\(tool.output)".prefix(4000))])
             } else if message.role == .user, !message.allImages.isEmpty {
-                let parts: [[String: Any]] = [["type": "text", "text": String(message.promptText.prefix(6000 + ComposerAttachment.maxPDFChars))]]
-                    + message.allImages.map { ["type": "image_url", "image_url": ["url": $0]] }
-                messages.append(["role": "user", "content": parts])
+                // input_image parts: https://docs.x.ai/developers/model-capabilities/images/understanding
+                let parts: [[String: Any]] = [["type": "input_text", "text": String(message.promptText.prefix(6000 + ComposerAttachment.maxPDFChars))]]
+                    + message.allImages.map { ["type": "input_image", "image_url": $0, "detail": "high"] }
+                input.append(["role": "user", "content": parts])
             } else if (message.role == .user || message.role == .assistant), !message.content.isEmpty {
-                messages.append(["role": message.role.rawValue, "content": String(message.promptText.prefix(message.context == nil ? 6000 : 6000 + ComposerAttachment.maxPDFChars))])
+                input.append(["role": message.role.rawValue, "content": String(message.promptText.prefix(message.context == nil ? 6000 : 6000 + ComposerAttachment.maxPDFChars))])
             }
         }
 
-        let visible = agentTools.filter { tool in
-            let name = ((tool["function"] as? [String: Any])?["name"] as? String) ?? ""
-            return allowed(mode, name)
+        // Server-side search tools: https://docs.x.ai/docs/guides/tools/search-tools and https://docs.x.ai/developers/tools/x-search
+        var tools: [[String: Any]] = search.map { ["type": $0] }
+        for tool in agentTools {
+            guard let function = tool["function"] as? [String: Any], let name = function["name"] as? String, allowed(mode, name) else { continue }
+            if name == "web_search", search.contains("web_search") { continue }
+            tools.append(["type": "function", "name": name, "description": function["description"] ?? "", "parameters": function["parameters"] ?? [:]])
         }
-        for _ in 0..<16 {
+
+        var model = tier.modelID
+        var effort = tier.effort
+        let heavyRefused = await MainActor.run { heavyToolsRefused }
+        if tier == .heavy, heavyRefused {
+            model = ReplyTier.expert.modelID
+            effort = ReplyTier.expert.effort
+            await onEvent(.reasoning(heavyNotice))
+        }
+
+        for _ in 0..<24 {
             if Task.isCancelled { return }
-            let turn = try await complete(key: trimmed, messages: messages, tools: visible)
-            if turn.calls.isEmpty {
-                if !turn.text.isEmpty { await onDelta(turn.text) }
-                return
+            let output: [[String: Any]]
+            do {
+                output = try await turn(key: trimmed, model: model, effort: effort, input: input, tools: tools, onEvent: onEvent)
+            } catch GrokClientError.badStatus(let status, let message) where status == 400 && model == ReplyTier.heavy.modelID && (message.contains("multi-agent") || message.contains("beta")) {
+                // https://docs.x.ai/developers/model-capabilities/text/multi-agent: client-side tools are not available
+                // to the multi-agent model without beta access, so this turn runs on Expert instead.
+                await MainActor.run { heavyToolsRefused = true }
+                model = ReplyTier.expert.modelID
+                effort = ReplyTier.expert.effort
+                await onEvent(.reasoning(heavyNotice))
+                continue
             }
-            let assistant: [String: Any] = [
-                "role": "assistant",
-                "content": turn.text.isEmpty ? NSNull() : turn.text,
-                "tool_calls": turn.calls.map { call in
-                    [
-                        "id": call.id,
-                        "type": "function",
-                        "function": ["name": call.name, "arguments": call.arguments],
-                    ]
-                },
-            ]
-            messages.append(assistant)
-            for call in turn.calls {
+            input.append(contentsOf: output)
+            let calls = output.filter { ($0["type"] as? String) == "function_call" }
+            if calls.isEmpty { return }
+
+            for item in calls {
                 if Task.isCancelled { return }
-                if !allowed(mode, call.name) {
-                    let output = "当前是\(mode == .ask ? "提问" : "计划")模式，不能改文件或执行命令。"
-                    await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: output, status: "error"))
-                    messages.append(["role": "tool", "tool_call_id": call.id, "content": output])
-                    continue
-                }
-                if call.name == "ask_user" {
-                    let question = (jsonObject(call.arguments)["question"] as? String) ?? "继续吗？"
-                    await onTool(ToolTrace(id: call.id, name: call.name, input: question, output: "", status: "ask"))
-                    let answer = await onGate("需要你回答", question, "ask")
-                    let output = answer == "no" || answer.isEmpty ? "用户没有回答。" : answer
-                    await onTool(ToolTrace(id: call.id, name: call.name, input: question, output: output, status: "done"))
-                    messages.append(["role": "tool", "tool_call_id": call.id, "content": output])
-                    continue
-                }
-                if let reason = escalation(name: call.name, arguments: call.arguments, sandbox: sandbox, approval: approval) {
-                    await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: "", status: "approval"))
-                    let answer = await onGate(reason, call.arguments, "approve")
-                    if answer != "yes" {
-                        let output = "用户拒绝了越界操作。"
-                        await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: output, status: "error"))
-                        messages.append(["role": "tool", "tool_call_id": call.id, "content": output])
-                        continue
-                    }
-                }
-                let access = accessLevel(name: call.name, arguments: call.arguments, sandbox: sandbox, approval: approval)
-                await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: "", status: "running"))
-                let (output, ok) = await LocalTools.run(name: call.name, arguments: call.arguments, root: root, key: trimmed, access: access)
-                await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: output, status: ok ? "done" : "error"))
-                messages.append(["role": "tool", "tool_call_id": call.id, "content": output])
+                let call = ToolCall(
+                    id: item["call_id"] as? String ?? item["id"] as? String ?? UUID().uuidString,
+                    name: item["name"] as? String ?? "",
+                    arguments: item["arguments"] as? String ?? "{}"
+                )
+                let result = await execute(call, root: root, key: trimmed, mode: mode, sandbox: sandbox, approval: approval, onTool: onTool, onGate: onGate)
+                input.append(["type": "function_call_output", "call_id": call.id, "output": result])
             }
         }
-        await onDelta("这一轮的工具次数用完了。")
+        await onEvent(.text("\n\n这一轮的工具次数用完了。"))
+    }
+
+    private static let heavyNotice = "Heavy 多智能体模型调用本机工具需要 xAI 的 beta 权限，这一轮改用 Expert · grok-4.7。\n\n"
+
+    private static func execute(
+        _ call: ToolCall,
+        root: URL,
+        key: String,
+        mode: AgentMode,
+        sandbox: String,
+        approval: String,
+        onTool: @escaping @MainActor (ToolTrace) -> Void,
+        onGate: @escaping @MainActor (String, String, String) async -> String
+    ) async -> String {
+        if !allowed(mode, call.name) {
+            let output = "当前是\(mode == .ask ? "提问" : "计划")模式，不能改文件或执行命令。"
+            await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: output, status: "error"))
+            return output
+        }
+        if call.name == "ask_user" {
+            let question = (jsonObject(call.arguments)["question"] as? String) ?? "继续吗？"
+            await onTool(ToolTrace(id: call.id, name: call.name, input: question, output: "", status: "ask"))
+            let answer = await onGate("需要你回答", question, "ask")
+            let output = answer == "no" || answer.isEmpty ? "用户没有回答。" : answer
+            await onTool(ToolTrace(id: call.id, name: call.name, input: question, output: output, status: "done"))
+            return output
+        }
+        let shown = displayInput(call)
+        if let reason = escalation(name: call.name, arguments: call.arguments, sandbox: sandbox, approval: approval) {
+            await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: "", status: "approval"))
+            let answer = await onGate(reason, shown, "approve")
+            if answer != "yes" {
+                let output = "用户拒绝了这次操作。"
+                await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: output, status: "error"))
+                return output
+            }
+        }
+        let access = accessLevel(name: call.name, arguments: call.arguments, sandbox: sandbox, approval: approval)
+        await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: "", status: "running"))
+        let (output, ok) = await LocalTools.run(name: call.name, arguments: call.arguments, root: root, key: key, access: access)
+        await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: output, status: ok ? "done" : "error"))
+        return output
+    }
+
+    /// The command itself for shell tools, otherwise the raw JSON arguments.
+    private static func displayInput(_ call: ToolCall) -> String {
+        let args = jsonObject(call.arguments)
+        if let command = args["command"] as? String, !command.isEmpty { return command }
+        if let path = args["path"] as? String, args.count == 1 { return path }
+        return call.arguments
     }
 
     private static let readOnly: Set<String> = ["read_file", "glob", "grep", "codebase_search", "web_search", "web_fetch", "ask_user", "undo"]
@@ -318,37 +341,8 @@ enum GrokClient {
         var arguments: String
     }
 
-    private static func complete(key: String, messages: [[String: Any]], tools: [[String: Any]]) async throws -> (text: String, calls: [ToolCall]) {
-        var request = URLRequest(url: URL(string: "https://api.x.ai/v1/chat/completions")!)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 60
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let payload: [String: Any] = [
-            "model": "grok-4.7",
-            "temperature": 0.2,
-            "messages": messages,
-            "tools": tools,
-            "tool_choice": "auto",
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw GrokClientError.badStatus(-1, "连接 Grok 失败。") }
-        guard http.statusCode == 200 else { throw GrokClientError.badStatus(http.statusCode, friendly(http.statusCode, data)) }
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let choices = json["choices"] as? [[String: Any]],
-              let message = choices.first?["message"] as? [String: Any]
-        else { throw GrokClientError.badStatus(-1, "Grok 没有完成回答。") }
-        let text = message["content"] as? String ?? ""
-        let calls = (message["tool_calls"] as? [[String: Any]] ?? []).enumerated().compactMap { index, call -> ToolCall? in
-            guard let function = call["function"] as? [String: Any], let name = function["name"] as? String, !name.isEmpty else { return nil }
-            return ToolCall(id: call["id"] as? String ?? "call_\(index)", name: name, arguments: function["arguments"] as? String ?? "{}")
-        }
-        return (text, calls)
-    }
-
     private static let agentTools: [[String: Any]] = [
-        tool("bash", "Run a shell command in the selected project. The current directory is that folder.", ["command"]),
+        tool("bash", "Run a shell command with /bin/bash on the user's Mac. The current directory is the working folder. Output is capped and commands time out after 20 seconds.", ["command"]),
         tool("read_file", "Read a text file. offset and limit are 1-based line numbers.", ["path"], extra: ["offset": "number", "limit": "number"]),
         tool("write_file", "Create or replace a text file in the project.", ["path", "content"]),
         tool("edit_file", "Replace one exact occurrence of old_string with new_string.", ["path", "old_string", "new_string"]),

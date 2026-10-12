@@ -14,11 +14,6 @@ struct SidebarView: View {
                 .buttonStyle(.plain)
                 .help("新对话")
                 Spacer()
-                Button { model.cliOpen.toggle() } label: {
-                    Image(systemName: "terminal")
-                }
-                .buttonStyle(.plain)
-                .help(model.cliOpen ? "隐藏本地终端" : "显示本地终端")
             }
             .padding(.horizontal, 12)
             .padding(.top, 10)
@@ -132,15 +127,6 @@ struct SidebarView: View {
                 NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             } label: {
                 Label("设置", systemImage: "gearshape")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 12)
-            .padding(.top, 12)
-            Button {
-                model.cliOpen.toggle()
-            } label: {
-                Label(model.cliOpen ? "隐藏终端" : "显示终端", systemImage: "terminal")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)

@@ -162,6 +162,17 @@ enum LocalTools {
     }
 
     private static func bash(root: URL, command: String, access: String) async -> (String, Bool) {
+        let result = await shell(root: root, command: command, access: access)
+        // A sandboxed app may not be allowed to apply a second sandbox-exec profile. The command then
+        // runs with plain /bin/bash, still confined by the app's own App Sandbox, and the card says so.
+        if access != "full", result.0.contains("sandbox_apply") {
+            let retry = await shell(root: root, command: command, access: "full")
+            return ("（sandbox-exec 在应用沙盒里不可用，这条命令只受 App Sandbox 限制）\n" + retry.0, retry.1)
+        }
+        return result
+    }
+
+    private static func shell(root: URL, command: String, access: String) async -> (String, Bool) {
         let limited = String(command.prefix(4_000))
         return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
