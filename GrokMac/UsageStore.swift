@@ -154,7 +154,7 @@ struct UsageSettings: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                group(tr("xAI API 限额", "xAI API limits")) {
+                group(tr("xAI API 限额", "xAI API limits"), note: store.limitHeadersAt.map { tr("取自 \($0.formatted(date: .omitted, time: .shortened)) 的 API 回复", "From the API reply at \($0.formatted(date: .omitted, time: .shortened))") }) {
                     meter(tr("请求次数", "Requests"), store.headerFraction("requests"))
                     meter("Tokens", store.headerFraction("tokens"))
                 }
@@ -175,9 +175,13 @@ struct UsageSettings: View {
         .task { await store.probeGrokCom() }
     }
 
-    private func group<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
+    private func group<Content: View>(_ title: String, note: String? = nil, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(Theme.ui(13, .semibold))
+            HStack(alignment: .firstTextBaseline) {
+                Text(title).font(Theme.ui(13, .semibold))
+                Spacer()
+                if let note { Text(note).font(Theme.ui(11)).foregroundStyle(.secondary) }
+            }
             VStack(alignment: .leading, spacing: 14) { content() }
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
