@@ -4,6 +4,7 @@ import SwiftUI
 struct SidebarView: View {
     @Environment(AppModel.self) private var model
     @State private var query = ""
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         VStack(spacing: 0) {
@@ -92,7 +93,7 @@ struct SidebarView: View {
                     SidebarRow(title: tr("连接器", "Connectors"), symbol: "link")
                 }
                 Button {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                    openSettings()
                 } label: {
                     SidebarRow(title: tr("设置", "Settings"), symbol: "gearshape")
                 }
