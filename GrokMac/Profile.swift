@@ -26,6 +26,13 @@ struct AccountProfile: Codable, Equatable {
     private static var infoURL: URL { folder.appendingPathComponent("profile.json") }
     static var imageURL: URL { folder.appendingPathComponent("avatar-image") }
 
+    /// userinfo returns the picture as a path like "users/<id>/…-profile-picture.webp" on assets.grok.com.
+    static func pictureURL(_ raw: String?) -> URL? {
+        guard let raw, !raw.isEmpty else { return nil }
+        if raw.hasPrefix("http") { return URL(string: raw) }
+        return URL(string: "https://assets.grok.com/" + raw.drop(while: { $0 == "/" }))
+    }
+
     static func cached() -> AccountProfile? {
         guard let data = try? Data(contentsOf: infoURL) else { return nil }
         return try? JSONDecoder().decode(AccountProfile.self, from: data)
@@ -57,12 +64,20 @@ struct AccountProfile: Codable, Equatable {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         if let encoded = try? JSONEncoder().encode(profile) { try? encoded.write(to: infoURL, options: .atomic) }
         var image: NSImage?
-        if let raw = profile.picture, let url = URL(string: raw),
-           let (bytes, imageResponse) = try? await URLSession.shared.data(from: url),
-           (imageResponse as? HTTPURLResponse)?.statusCode == 200,
-           let decoded = NSImage(data: bytes) {
-            try? bytes.write(to: imageURL, options: .atomic)
-            image = decoded
+        if let url = pictureURL(profile.picture) {
+            // assets.grok.com is not public: try with the bearer token first, then plainly.
+            for authorized in [true, false] {
+                var get = URLRequest(url: url)
+                get.timeoutInterval = 15
+                if authorized { get.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+                if let (bytes, imageResponse) = try? await URLSession.shared.data(for: get),
+                   (imageResponse as? HTTPURLResponse)?.statusCode == 200,
+                   let decoded = NSImage(data: bytes) {
+                    try? bytes.write(to: imageURL, options: .atomic)
+                    image = decoded
+                    break
+                }
+            }
         }
         return (profile, image ?? cachedImage())
     }
