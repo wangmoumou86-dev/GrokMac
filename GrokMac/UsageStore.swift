@@ -138,7 +138,11 @@ struct UsageSettings: View {
                 ForEach(groups.prefix(15), id: \.key) { id, list in line(title(id), list) }
             }
             Section(tr("额度与剩余次数", "Quota and remaining limits")) {
-                if store.limitHeaders.isEmpty {
+                if store.lastHeaderNames.isEmpty && store.limitHeaders.isEmpty {
+                    Text(tr("还没有收到过 API 回复。发一条消息后，这里会说明接口是否返回了额度信息。",
+                            "No API response yet. After you send a message this shows whether the API returned any quota data."))
+                        .font(Theme.ui(12)).foregroundStyle(.secondary)
+                } else if store.limitHeaders.isEmpty {
                     Text(tr("xAI 的接口没有返回额度或剩余次数（最近一次回复里没有 rate-limit 类响应头），所以这里不显示额度。超出额度时，对话里会直接显示接口的报错。",
                             "The xAI API did not return quota or remaining-limit data (no rate-limit headers on the latest response), so no quota is shown here. If you hit a limit, the API's error shows in the chat."))
                         .font(Theme.ui(12)).foregroundStyle(.secondary)
