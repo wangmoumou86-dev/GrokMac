@@ -1,3 +1,4 @@
+import AVKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -18,7 +19,7 @@ struct ChatPane: View {
                 VStack(spacing: 20) {
                     Text(model.place == .imagine ? "Imagine" : "Grok")
                         .font(.system(size: 40, weight: .medium))
-                    Text(model.place == .imagine ? "描述你要的图片" : "左边是网页端，右边终端改这台 Mac 上的工程")
+                    Text(model.place == .imagine ? (model.imagineVideo ? "描述你要的视频" : "描述你要的图片") : "左边是网页端，右边终端改这台 Mac 上的工程")
                         .foregroundStyle(.secondary)
                     composer
                         .frame(maxWidth: 720)
@@ -139,6 +140,17 @@ struct ChatPane: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
 
+                if model.place == .imagine {
+                    Picker("", selection: Binding(get: { model.imagineVideo }, set: { model.imagineVideo = $0 })) {
+                        Text("图片").tag(false)
+                        Text("视频").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                    .help("生成图片或视频")
+                }
+
                 if model.place != .imagine {
                     SearchToggle(title: "联网", icon: "globe", on: model.webSearch) { model.webSearch.toggle() }
                         .help("让 Grok 搜索网页并附上来源")
@@ -257,6 +269,9 @@ private struct MessageRow: View {
                 } else {
                     MarkdownView(text: message.content)
                         .foregroundStyle(message.error ? Color(red: 0.88, green: 0.36, blue: 0.39) : Color.primary)
+                }
+                if let path = message.video {
+                    VideoCard(url: URL(fileURLWithPath: path))
                 }
                 if let links = message.citations, !links.isEmpty {
                     SourceList(links: links)
@@ -382,5 +397,41 @@ private struct AttachmentChip: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(Capsule().fill(Color.white.opacity(0.08)))
+    }
+}
+
+private struct VideoCard: View {
+    var url: URL
+    @State private var player: AVPlayer?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if FileManager.default.fileExists(atPath: url.path) {
+                VideoPlayer(player: player)
+                    .frame(maxWidth: 560)
+                    .aspectRatio(16 / 9, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .onAppear { if player == nil { player = AVPlayer(url: url) } }
+                HStack {
+                    Button("在 Finder 中显示") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                    Button("存储为…") { saveCopy() }
+                }
+                .buttonStyle(.link)
+                .font(.caption)
+            } else {
+                Text("视频文件已不在本机。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func saveCopy() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "Grok Imagine.mp4"
+        panel.allowedContentTypes = [.mpeg4Movie]
+        guard panel.runModal() == .OK, let target = panel.url else { return }
+        try? FileManager.default.removeItem(at: target)
+        try? FileManager.default.copyItem(at: url, to: target)
     }
 }

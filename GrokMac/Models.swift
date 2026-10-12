@@ -177,6 +177,7 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     var images: [String]?
     var files: [String]?
     var context: String?
+    var video: String?
 
     init(
         id: UUID = UUID(),

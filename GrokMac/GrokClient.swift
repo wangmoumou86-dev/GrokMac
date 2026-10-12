@@ -391,4 +391,69 @@ enum GrokClient {
         }
         throw GrokClientError.badStatus(-1, "没有生成图片。")
     }
+
+    /// Async video generation: POST /v1/videos/generations then poll GET /v1/videos/{request_id}.
+    /// https://docs.x.ai/developers/rest-api-reference/inference/videos
+    static func imagineVideo(key: String, prompt: String, onProgress: @escaping @MainActor (Int) -> Void) async throws -> URL {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw GrokClientError.missingKey }
+        var requestID = ""
+        var lastStatus = 0
+        var lastData = Data()
+        for model in ["grok-imagine-video-1.5", "grok-imagine-video"] {
+            var request = URLRequest(url: URL(string: "https://api.x.ai/v1/videos/generations")!)
+            request.httpMethod = "POST"
+            request.timeoutInterval = 60
+            request.setValue("Bearer \(trimmed)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: ["model": model, "prompt": String(prompt.prefix(4000))])
+            let (data, response) = try await URLSession.shared.data(for: request)
+            lastStatus = (response as? HTTPURLResponse)?.statusCode ?? -1
+            lastData = data
+            guard (200..<300).contains(lastStatus) else {
+                if lastStatus == 401 || lastStatus == 403 || lastStatus == 429 { break }
+                continue
+            }
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            requestID = json?["request_id"] as? String ?? ""
+            if !requestID.isEmpty { break }
+        }
+        guard !requestID.isEmpty else {
+            throw GrokClientError.badStatus(lastStatus, lastStatus == -1 ? "没有生成视频。" : friendly(lastStatus, lastData).replacingOccurrences(of: "回答", with: "视频"))
+        }
+
+        let deadline = Date().addingTimeInterval(15 * 60)
+        while Date() < deadline {
+            try await Task.sleep(for: .seconds(4))
+            var poll = URLRequest(url: URL(string: "https://api.x.ai/v1/videos/\(requestID)")!)
+            poll.timeoutInterval = 60
+            poll.setValue("Bearer \(trimmed)", forHTTPHeaderField: "Authorization")
+            let (data, response) = try await URLSession.shared.data(for: poll)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                if status >= 400 { throw GrokClientError.badStatus(status, friendly(status, data)) }
+                continue
+            }
+            switch json["status"] as? String ?? "" {
+            case "done":
+                let video = json["video"] as? [String: Any]
+                if video?["respect_moderation"] as? Bool == false {
+                    throw GrokClientError.badStatus(-1, "视频没有通过内容审核。")
+                }
+                guard let raw = video?["url"] as? String, let url = URL(string: raw) else {
+                    throw GrokClientError.badStatus(-1, "没有拿到视频地址。")
+                }
+                return url
+            case "failed", "expired":
+                let message = ((json["error"] as? [String: Any])?["message"] as? String) ?? ""
+                throw GrokClientError.badStatus(-1, message.isEmpty ? "视频生成失败。" : "视频生成失败。\(message.prefix(160))")
+            default:
+                if let progress = json["progress"] as? Int {
+                    await MainActor.run { onProgress(progress) }
+                }
+                if status >= 400 { throw GrokClientError.badStatus(status, friendly(status, data)) }
+            }
+        }
+        throw GrokClientError.badStatus(-1, "视频生成超时。")
+    }
 }

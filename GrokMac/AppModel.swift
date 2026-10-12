@@ -30,6 +30,7 @@ final class AppModel {
     var sandboxMode = "workspace-write"
     var approvalPolicy = "on-request"
     var useWorktree = false
+    var imagineVideo = false
     var webSearch = UserDefaults.standard.bool(forKey: "grok.webSearch") {
         didSet { UserDefaults.standard.set(webSearch, forKey: "grok.webSearch") }
     }
@@ -317,6 +318,10 @@ final class AppModel {
         chatTask?.cancel()
         chatTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            if imagine, self.imagineVideo {
+                await self.runVideo(sessionID: sessionID, messageID: assistantID, prompt: text, key: key)
+                return
+            }
             if imagine {
                 await self.runImagine(sessionID: sessionID, messageID: assistantID, prompt: text, key: key)
                 return
@@ -374,6 +379,31 @@ final class AppModel {
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? "没有生成图片。"
             finish(sessionID: sessionID, messageID: messageID, content: message, error: true)
+        }
+        busy = false
+    }
+
+    private func runVideo(sessionID: UUID, messageID: UUID, prompt: String, key: String) async {
+        replaceAssistant(sessionID: sessionID, messageID: messageID, content: "正在生成视频…", pending: true, error: false)
+        do {
+            let remote = try await GrokClient.imagineVideo(key: key, prompt: prompt) { progress in
+                self.replaceAssistant(sessionID: sessionID, messageID: messageID, content: "正在生成视频… \(progress)%", pending: true, error: false)
+            }
+            replaceAssistant(sessionID: sessionID, messageID: messageID, content: "正在下载视频…", pending: true, error: false)
+            // The returned URL is temporary, so keep a local copy.
+            let (temp, _) = try await URLSession.shared.download(from: remote)
+            let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("GrokMac/Videos", isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let local = folder.appendingPathComponent("\(messageID.uuidString).mp4")
+            try? FileManager.default.removeItem(at: local)
+            try FileManager.default.moveItem(at: temp, to: local)
+            updateMessage(sessionID: sessionID, messageID: messageID) { $0.video = local.path }
+            finish(sessionID: sessionID, messageID: messageID, content: "生成的视频", error: false)
+        } catch {
+            let cancelled = error is CancellationError || (error as? URLError)?.code == .cancelled
+            let message = cancelled ? "已停止。" : ((error as? LocalizedError)?.errorDescription ?? "没有生成视频。")
+            finish(sessionID: sessionID, messageID: messageID, content: message, error: !cancelled)
         }
         busy = false
     }
