@@ -146,7 +146,13 @@ enum GrokClient {
     }
 
     private static func friendly(_ status: Int, _ data: Data) -> String {
-        if status == 429 { return "额度或频率受限，请稍后再试。" }
+        if status == 429 {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            if body.contains("at capacity") || body.contains("resource-exhausted") {
+                return "这个模型现在太忙，请过几分钟再试，或先换成 Expert。"
+            }
+            return "额度或频率受限，请稍后再试。"
+        }
         if status == 401 || status == 403 { return "账号没有通过。再点一次登录。" }
         var detail = ""
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
