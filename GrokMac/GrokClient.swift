@@ -151,7 +151,7 @@ enum GrokClient {
             place,
             "Commands run with /bin/bash as the user. You can read anywhere in their home folder and write there too; destructive commands and edits outside the working folder wait for the user's approval. Sandbox setting: \(sandbox). Approval: \(approval). Risky or networked commands wait for the user's approval.",
             approvalLine(approval),
-            "Never claim a command ran or a file changed unless a tool result says so. Keep tool output summaries short; the user already sees each command and its output in the chat.",
+            "To use a tool, make a real function call. Never type a tool call as text (for example \"[write_file] {...}\") and never claim a command ran or a file changed unless a tool result says so. Keep tool output summaries short; the user already sees each command and its output in the chat.",
             "Use ask_user when you need a decision.",
             "Do not run the same or an equivalent command twice (for example ls -la, ls -lah and ls -1A of one folder). Plan one command that gets what you need, and answer as soon as you have enough; most questions need one to three tool calls.",
             modeLine,
@@ -212,7 +212,11 @@ enum GrokClient {
         var input: [[String: Any]] = [["role": "system", "content": system]]
         for message in history.suffix(24) {
             if message.role == .tool, let tool = message.tool {
-                input.append(["role": "assistant", "content": String("[\(tool.name)] \(tool.input)\n\(tool.output)".prefix(4000))])
+                // Replay earlier tool use as real function_call / function_call_output items. Plain
+                // "[tool] input" assistant text taught the model to type fake tool calls instead of calling.
+                let callID = "hist-" + String(tool.id.suffix(40))
+                input.append(["type": "function_call", "call_id": callID, "name": tool.name, "arguments": historyArguments(tool)])
+                input.append(["type": "function_call_output", "call_id": callID, "output": String(tool.output.prefix(4000))])
             } else if message.role == .user, !message.allImages.isEmpty {
                 // input_image parts: https://docs.x.ai/developers/model-capabilities/images/understanding
                 let parts: [[String: Any]] = [["type": "input_text", "text": String(message.promptText.prefix(6000 + ComposerAttachment.maxPDFChars))]]
@@ -297,6 +301,14 @@ enum GrokClient {
                 input.append(["type": "function_call_output", "call_id": call.id, "output": result])
             }
         }
+    }
+
+    /// Best-effort arguments JSON for a stored tool card (cards keep the displayed input, not the raw JSON).
+    private static func historyArguments(_ tool: ToolTrace) -> String {
+        if let data = tool.input.data(using: .utf8), (try? JSONSerialization.jsonObject(with: data)) is [String: Any] { return tool.input }
+        let key = ["bash", "run_tests"].contains(tool.name) ? "command" : (tool.name.hasPrefix("mcp__") ? "input" : "path")
+        let data = (try? JSONSerialization.data(withJSONObject: [key: tool.input])) ?? Data("{}".utf8)
+        return String(decoding: data, as: UTF8.self)
     }
 
     /// Arguments JSON with sorted keys so key order does not defeat the duplicate check.
