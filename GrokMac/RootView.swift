@@ -133,11 +133,12 @@ private struct LoginGate: View {
                     .frame(width: 72, height: 72)
                 Text("Grok")
                     .font(.system(size: 40, weight: .medium))
-                Text("会在浏览器打开 accounts.x.ai")
+                Text("打开官方授权页，用 X、Google 或 Apple")
                     .foregroundStyle(.secondary)
                 Button("登录") {
-                    LoginSession.start()
-                    model.showLogin = false
+                    LoginSession.start { ok in
+                        if ok { model.showLogin = false }
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
