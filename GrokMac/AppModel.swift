@@ -23,6 +23,7 @@ final class AppModel {
     var showLogin = true
     var signedIn = !KeychainStore.load().isEmpty
     var loginWaiting = false
+    var signedIn = !KeychainStore.load().isEmpty
     var loginFailed = false
     var projectLabel = ProjectStore.label()
     var autoRun = false
@@ -85,6 +86,18 @@ final class AppModel {
         LoginSession.submit(pasted: code) { [weak self] ok in
             self?.loginFinished(ok)
         }
+    }
+
+    func signOut() {
+        KeychainStore.save("")
+        signedIn = false
+        beginLoginPage()
+    }
+
+    private func beginLoginPage() {
+        showLogin = true
+        loginWaiting = false
+        loginFailed = false
     }
 
     func skipLogin() {
