@@ -259,8 +259,10 @@ struct ChatPane: View {
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.image, .pdf]
         panel.prompt = "添加"
-        guard panel.runModal() == .OK else { return }
-        panel.urls.forEach(addAttachment)
+        AttachedPanel.present(panel) { response in
+            guard response == .OK else { return }
+            panel.urls.forEach(addAttachment)
+        }
     }
 
     private func addAttachment(_ url: URL) {
@@ -589,9 +591,12 @@ private struct VideoCard: View {
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "Grok Imagine.mp4"
         panel.allowedContentTypes = [.mpeg4Movie]
-        guard panel.runModal() == .OK, let target = panel.url else { return }
-        try? FileManager.default.removeItem(at: target)
-        try? FileManager.default.copyItem(at: url, to: target)
+        let source = url
+        AttachedPanel.present(panel) { response in
+            guard response == .OK, let target = panel.url else { return }
+            try? FileManager.default.removeItem(at: target)
+            try? FileManager.default.copyItem(at: source, to: target)
+        }
     }
 }
 

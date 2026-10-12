@@ -17,13 +17,6 @@ struct GrokMacApp: App {
         }
         .defaultSize(width: 1180, height: 760)
         .commands { GrokCommands(model: model) }
-
-        Settings {
-            SettingsView()
-                .font(Theme.ui(13))
-                .environment(model)
-                .preferredColorScheme(Prefs.shared.colorScheme)
-        }
     }
 }
 
@@ -31,6 +24,10 @@ private struct GrokCommands: Commands {
     var model: AppModel
 
     var body: some Commands {
+        CommandGroup(replacing: .appSettings) {
+            Button("设置…") { model.showSettings = true }
+                .keyboardShortcut(",", modifiers: .command)
+        }
         CommandGroup(replacing: .newItem) {
             Button("新对话") { model.newSession() }
                 .keyboardShortcut("n", modifiers: .command)

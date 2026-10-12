@@ -24,6 +24,8 @@ final class AppModel {
     var activeBotID: UUID?
     var busy = false
     var showPalette = false
+    var showSettings = false
+    var webURL: URL?
     var showLogin = true
     var signedIn = !KeychainStore.load().isEmpty
     var loginWaiting = false
@@ -184,7 +186,13 @@ final class AppModel {
         panel.nameFieldStringValue = "Grok 对话导出.md"
         panel.allowedContentTypes = [.init(filenameExtension: "md")!, .json]
         panel.message = tr("选 .md 导出为 Markdown，选 .json 导出原始数据。", "Use .md for Markdown or .json for raw data.")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        AttachedPanel.present(panel) { response in
+            guard response == .OK, let url = panel.url else { return }
+            self.writeExport(to: url)
+        }
+    }
+
+    private func writeExport(to url: URL) {
         if url.pathExtension.lowercased() == "json" {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -281,7 +289,13 @@ final class AppModel {
         panel.canCreateDirectories = true
         panel.prompt = "选择工程"
         panel.message = "工具只会读写这个文件夹。"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        AttachedPanel.present(panel) { response in
+            guard response == .OK, let url = panel.url else { return }
+            self.rememberProject(url)
+        }
+    }
+
+    private func rememberProject(_ url: URL) {
         do {
             try ProjectStore.save(url)
             projectLabel = url.path

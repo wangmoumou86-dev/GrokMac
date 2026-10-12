@@ -19,6 +19,17 @@ struct RootView: View {
         .sheet(isPresented: $model.showPalette) {
             PaletteSheet()
         }
+        .sheet(isPresented: $model.showSettings) {
+            SettingsSheet()
+        }
+        .sheet(item: Binding(get: { model.webURL.map(WebTarget.init) }, set: { model.webURL = $0?.url })) { target in
+            WebSheet(url: target.url)
+        }
+        .environment(\.openURL, OpenURLAction { url in
+            guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return .systemAction }
+            model.webURL = url
+            return .handled
+        })
         .overlay {
             if model.showLogin {
                 LoginGate()
@@ -138,4 +149,10 @@ private struct LoginGate: View {
         model.submitLoginCode(pasted)
         pasted = ""
     }
+}
+
+
+private struct WebTarget: Identifiable {
+    let url: URL
+    var id: String { url.absoluteString }
 }
