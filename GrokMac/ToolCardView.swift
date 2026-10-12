@@ -25,6 +25,12 @@ struct ToolCardView: View {
         }
     }
 
+    static func fit(_ size: CGSize) -> CGSize {
+        guard size.width > 0, size.height > 0 else { return CGSize(width: 1, height: 1) }
+        let scale = min(420 / size.width, 320 / size.height, 4)
+        return CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
+    }
+
     var body: some View {
         let open = expanded ?? (tool.status == "running" || tool.status == "approval" || tool.status == "ask")
         VStack(alignment: .leading, spacing: 6) {
@@ -69,10 +75,12 @@ struct ToolCardView: View {
                 }
                 ForEach(tool.images ?? [], id: \.self) { path in
                     if let image = NSImage(contentsOfFile: path) {
+                        // A fixed frame: flexible image sizing inside the lazy chat list kept re-laying out.
+                        let size = Self.fit(image.size)
                         Image(nsImage: image)
                             .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: 420, maxHeight: 320, alignment: .leading)
+                            .interpolation(.high)
+                            .frame(width: size.width, height: size.height)
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                 }
