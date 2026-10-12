@@ -118,7 +118,7 @@ struct ChatPane: View {
                     }
                 }
                 if attachments.contains(where: { $0.kind == .pdf }) {
-                    Text("PDF 只发送提取出的文字（最多 \(ComposerAttachment.maxPDFChars / 1000)k 字符），扫描件里的图片不会被读取。")
+                    Text(tr("PDF 只发送提取出的文字（最多 \(ComposerAttachment.maxPDFChars / 1000)k 字符），扫描件里的图片不会被读取。", "PDFs send only extracted text (up to \(ComposerAttachment.maxPDFChars / 1000)k characters); images in scans are not read."))
                         .font(Theme.ui(10))
                         .foregroundStyle(.secondary)
                 }
@@ -194,10 +194,10 @@ struct ChatPane: View {
 
                 if model.place == .imagine {
                     SegmentedTabs(selection: Binding(get: { model.imagineVideo }, set: { model.imagineVideo = $0 }), options: [
-                        (false, "图片"),
-                        (true, "视频"),
+                        (false, tr("图片", "Image")),
+                        (true, tr("视频", "Video")),
                     ])
-                    .help("生成图片或视频")
+                    .help(tr("生成图片或视频", "Generate an image or video"))
                 }
 
 
@@ -239,7 +239,7 @@ struct ChatPane: View {
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.image, .pdf]
-        panel.prompt = "添加"
+        panel.prompt = tr("添加", "Add")
         AttachedPanel.present(panel) { response in
             guard response == .OK else { return }
             panel.urls.forEach(addAttachment)
@@ -278,7 +278,7 @@ private struct MessageRow: View {
                 Spacer(minLength: Theme.contentWidth * 0.3)
                 VStack(alignment: .leading, spacing: 4) {
                     if message.surface == .cli {
-                        Text("来自终端")
+                        Text(tr("来自终端", "From Terminal"))
                             .font(Theme.ui(11))
                             .foregroundStyle(.secondary)
                     }
@@ -507,7 +507,7 @@ private struct AttachmentChip: View {
                 .lineLimit(1)
                 .frame(maxWidth: 140)
             if item.kind == .pdf {
-                Text("文字 \((item.text ?? "").count) 字")
+                Text(tr("文字 \((item.text ?? "").count) 字", "\((item.text ?? "").count) characters of text"))
                     .font(Theme.ui(10))
                     .foregroundStyle(.secondary)
             }
@@ -516,7 +516,7 @@ private struct AttachmentChip: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .help("移除")
+            .help(tr("移除", "Remove"))
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -555,13 +555,13 @@ private struct VideoCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .onAppear { if player == nil { player = AVPlayer(url: url) } }
                 HStack {
-                    Button("在 Finder 中显示") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
-                    Button("存储为…") { saveCopy() }
+                    Button(tr("在 Finder 中显示", "Show in Finder")) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                    Button(tr("存储为…", "Save As…")) { saveCopy() }
                 }
                 .buttonStyle(.link)
                 .font(Theme.ui(11))
             } else {
-                Text("视频文件已不在本机。")
+                Text(tr("视频文件已不在本机。", "The video file is no longer on this Mac."))
                     .font(Theme.ui(11))
                     .foregroundStyle(.secondary)
             }

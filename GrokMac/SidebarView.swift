@@ -107,14 +107,14 @@ struct SidebarView: View {
                     }
                     .menuStyle(.button)
                     .menuIndicator(.hidden)
-                    .help("已用 xAI 账号登录")
+                    .help(tr("已用 xAI 账号登录", "Signed in with an xAI account"))
                 } else {
                     Button {
                         model.beginLogin()
                     } label: {
                         AccountRow(title: tr("登录", "Sign in"), subtitle: "accounts.x.ai")
                     }
-                    .help("打开 accounts.x.ai 的官方登录")
+                    .help(tr("打开 accounts.x.ai 的官方登录", "Open the official sign-in at accounts.x.ai"))
                 }
             }
             .buttonStyle(.plain)
@@ -143,7 +143,7 @@ struct SidebarView: View {
         let filtered = model.sessions
             .filter { q.isEmpty || $0.title.lowercased().contains(q) }
             .sorted { $0.updatedAt > $1.updatedAt }
-        let order = ["今天", "昨天", "更早"]
+        let order = [tr("今天", "Today"), tr("昨天", "Yesterday"), tr("更早", "Earlier")]
         return order.compactMap { title in
             let items = filtered.filter { dayLabel($0.updatedAt) == title }
             return items.isEmpty ? nil : DayGroup(title: title, sessions: items)
@@ -158,9 +158,9 @@ private struct DayGroup: Identifiable {
 }
 
 private func dayLabel(_ date: Date) -> String {
-    if Calendar.current.isDateInToday(date) { return "今天" }
-    if Calendar.current.isDateInYesterday(date) { return "昨天" }
-    return "更早"
+    if Calendar.current.isDateInToday(date) { return tr("今天", "Today") }
+    if Calendar.current.isDateInYesterday(date) { return tr("昨天", "Yesterday") }
+    return tr("更早", "Earlier")
 }
 
 /// 36pt sidebar row with 12pt radius, 14pt text, hover and selected fills (grok.com).

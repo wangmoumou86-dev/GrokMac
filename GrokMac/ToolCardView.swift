@@ -7,11 +7,11 @@ struct ToolCardView: View {
 
     private var statusText: String {
         switch tool.status {
-        case "running": "运行中"
-        case "approval": "等你批准"
-        case "ask": "等你回答"
-        case "error": "失败"
-        default: "完成"
+        case "running": tr("运行中", "Running")
+        case "approval": tr("等你批准", "Awaiting approval")
+        case "ask": tr("等你回答", "Awaiting answer")
+        case "error": tr("失败", "Failed")
+        default: tr("完成", "Done")
         }
     }
 

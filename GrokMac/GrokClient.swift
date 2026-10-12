@@ -7,7 +7,7 @@ enum GrokClientError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingKey:
-            "先登录，或点暂时跳过。这个应用不再要 API Key。"
+            tr("先登录，或点暂时跳过。这个应用不再要 API Key。", "Sign in first, or tap Skip for now. This app no longer needs an API key.")
         case .badStatus(_, let message):
             message
         }
@@ -43,7 +43,7 @@ enum GrokClient {
 
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
         guard let http = response as? HTTPURLResponse else {
-            throw GrokClientError.badStatus(-1, "连接 Grok 失败。")
+            throw GrokClientError.badStatus(-1, tr("连接 Grok 失败。", "Couldn't connect to Grok."))
         }
         guard http.statusCode == 200 else {
             var data = Data()
@@ -81,7 +81,7 @@ enum GrokClient {
             case "response.failed", "error":
                 let body = (json["response"] as? [String: Any])?["error"] as? [String: Any] ?? json["error"] as? [String: Any] ?? json
                 let detail = body["message"] as? String ?? ""
-                throw GrokClientError.badStatus(-1, detail.isEmpty ? "Grok 没有完成回答。" : "Grok 没有完成回答。\(detail.prefix(160))")
+                throw GrokClientError.badStatus(-1, detail.isEmpty ? tr("Grok 没有完成回答。", "Grok didn't finish the answer.") : tr("Grok 没有完成回答。\(detail.prefix(160))", "Grok didn't finish the answer. \(detail.prefix(160))"))
             default:
                 continue
             }
@@ -166,11 +166,11 @@ enum GrokClient {
         if status == 429 {
             let body = String(data: data, encoding: .utf8) ?? ""
             if body.contains("at capacity") || body.contains("resource-exhausted") {
-                return "这个模型现在太忙，请过几分钟再试，或先换成 Expert。"
+                return tr("这个模型现在太忙，请过几分钟再试，或先换成 Expert。", "This model is busy right now. Try again in a few minutes, or switch to Expert.")
             }
-            return "额度或频率受限，请稍后再试。"
+            return tr("额度或频率受限，请稍后再试。", "Rate or quota limited. Try again later.")
         }
-        if status == 401 || status == 403 { return "账号没有通过。再点一次登录。" }
+        if status == 401 || status == 403 { return tr("账号没有通过。再点一次登录。", "The account wasn't accepted. Sign in again.") }
         var detail = ""
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             if let text = json["error"] as? String {
@@ -181,7 +181,7 @@ enum GrokClient {
         }
         detail = detail.replacingOccurrences(of: #"xai-[A-Za-z0-9_-]+"#, with: "", options: .regularExpression)
         if detail.count > 160 { detail = String(detail.prefix(160)) }
-        return detail.isEmpty ? "Grok 没有完成回答（\(status)）。" : "Grok 没有完成回答。\(detail)"
+        return detail.isEmpty ? tr("Grok 没有完成回答（\(status)）。", "Grok didn't finish the answer (\(status)).") : tr("Grok 没有完成回答。\(detail)", "Grok didn't finish the answer. \(detail)")
     }
 
     /// The chat agent loop over the Responses API with function tools:
@@ -262,7 +262,7 @@ enum GrokClient {
             if Task.isCancelled { return }
             if round > maxToolRounds {
                 // Out of tool rounds: one more request without tools so the model answers with what it has.
-                input.append(["role": "user", "content": "已经调用了 \(maxToolRounds) 轮工具。不要再调用工具，直接根据已有结果回答。"])
+                input.append(["role": "user", "content": tr("已经调用了 \(maxToolRounds) 轮工具。不要再调用工具，直接根据已有结果回答。", "You have used tools for \(maxToolRounds) rounds. Do not call more tools; answer from the results you have.")])
                 _ = try? await turn(key: trimmed, model: model, effort: effort, input: input, tools: [], onEvent: onEvent)
                 return
             }
@@ -293,7 +293,7 @@ enum GrokClient {
                 let signature = call.name + "\u{1F}" + canonicalArguments(call.arguments)
                 let result: String
                 if let previous = seen[signature] {
-                    result = "（与本轮之前的一次调用完全相同，没有重复执行，以下是上次的结果。请直接使用它。）\n" + previous
+                    result = tr("（与本轮之前的一次调用完全相同，没有重复执行，以下是上次的结果。请直接使用它。）\n", "(Identical to an earlier call this turn; not run again. Here is the previous result; use it.)\n") + previous
                 } else {
                     result = await execute(call, root: root, key: trimmed, mode: mode, sandbox: sandbox, approval: approval, onTool: onTool, onGate: onGate)
                     seen[signature] = result
@@ -320,7 +320,7 @@ enum GrokClient {
         return text
     }
 
-    private static let heavyNotice = "Heavy 多智能体模型调用本机工具需要 xAI 的 beta 权限，这一轮改用 Expert · grok-4.7。\n\n"
+    private static let heavyNotice = tr("Heavy 多智能体模型调用本机工具需要 xAI 的 beta 权限，这一轮改用 Expert · grok-4.7。\n\n", "Heavy multi-agent tool use needs xAI beta access, so this turn uses Expert · grok-4.7.\n\n")
 
     private static func execute(
         _ call: ToolCall,
@@ -336,15 +336,15 @@ enum GrokClient {
             return await executeMCP(call, mode: mode, approval: approval, onTool: onTool, onGate: onGate)
         }
         if !allowed(mode, call.name) {
-            let output = "当前是\(mode == .ask ? "提问" : "计划")模式，不能改文件或执行命令。"
+            let output = tr("当前是\(mode == .ask ? "提问" : "计划")模式，不能改文件或执行命令。", "\(mode == .ask ? "Ask" : "Plan") mode can't change files or run commands.")
             await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: output, status: "error"))
             return output
         }
         if call.name == "ask_user" {
-            let question = (jsonObject(call.arguments)["question"] as? String) ?? "继续吗？"
+            let question = (jsonObject(call.arguments)["question"] as? String) ?? tr("继续吗？", "Continue?")
             await onTool(ToolTrace(id: call.id, name: call.name, input: question, output: "", status: "ask"))
-            let answer = await onGate("需要你回答", question, "ask")
-            let output = answer == "no" || answer.isEmpty ? "用户没有回答。" : answer
+            let answer = await onGate(tr("需要你回答", "Needs your answer"), question, "ask")
+            let output = answer == "no" || answer.isEmpty ? tr("用户没有回答。", "The user didn't answer.") : answer
             await onTool(ToolTrace(id: call.id, name: call.name, input: question, output: output, status: "done"))
             return output
         }
@@ -353,7 +353,7 @@ enum GrokClient {
             await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: "", status: "approval"))
             let answer = await onGate(reason, shown, "approve")
             if answer != "yes" {
-                let output = "用户拒绝了这次操作。"
+                let output = tr("用户拒绝了这次操作。", "The user denied this action.")
                 await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: output, status: "error"))
                 return output
             }
@@ -375,13 +375,13 @@ enum GrokClient {
         onGate: @escaping @MainActor (String, String, String) async -> String
     ) async -> String {
         guard let tool = await MainActor.run(body: { MCPManager.shared.tool(named: call.name) }) else {
-            let output = "这个 MCP 工具现在不可用（服务器未连接）。"
+            let output = tr("这个 MCP 工具现在不可用（服务器未连接）。", "This MCP tool is unavailable (server not connected).")
             await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: output, status: "error"))
             return output
         }
         let shown = "\(tool.server) · \(tool.name) \(call.arguments)"
         if mode != .code, !tool.readOnly {
-            let output = "当前是\(mode == .ask ? "提问" : "计划")模式，只能用只读的 MCP 工具。"
+            let output = tr("当前是\(mode == .ask ? "提问" : "计划")模式，只能用只读的 MCP 工具。", "\(mode == .ask ? "Ask" : "Plan") mode can only use read-only MCP tools.")
             await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: output, status: "error"))
             return output
         }
@@ -394,11 +394,11 @@ enum GrokClient {
         }
         if ask {
             await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: "", status: "approval"))
-            let answer = await onGate("要调用 MCP 工具 \(tool.server) · \(tool.name)。允许？", shown, approval == "readOnly" ? "approve" : "approve-mcp:" + tool.server)
+            let answer = await onGate(tr("要调用 MCP 工具 \(tool.server) · \(tool.name)。允许？", "Call MCP tool \(tool.server) · \(tool.name)?"), shown, approval == "readOnly" ? "approve" : "approve-mcp:" + tool.server)
             if answer == "always" {
                 await MainActor.run { MCPManager.shared.setAlwaysAllow(tool.server, true) }
             } else if answer != "yes" {
-                let output = "用户拒绝了这次操作。"
+                let output = tr("用户拒绝了这次操作。", "The user denied this action.")
                 await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: output, status: "error"))
                 return output
             }
@@ -406,7 +406,7 @@ enum GrokClient {
         await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: "", status: "running"))
         let result = await MCPManager.shared.call(tool, arguments: call.arguments)
         await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: result.text, status: result.ok ? "done" : "error", images: result.images.isEmpty ? nil : result.images))
-        return result.ok ? result.text : "工具返回错误：" + result.text
+        return result.ok ? result.text : tr("工具返回错误：", "Tool returned an error: ") + result.text
     }
 
     /// The command itself for shell tools, otherwise the raw JSON arguments.
@@ -516,25 +516,25 @@ enum GrokClient {
         let command = (jsonObject(arguments)["command"] as? String) ?? ""
         let writes = mutating.contains(name) || name == "todo_write" || name == "undo"
         if sandbox == "read-only", writes {
-            return approval == "never" ? nil : "只读沙箱。允许这一次写出或执行？"
+            return approval == "never" ? nil : tr("只读沙箱。允许这一次写出或执行？", "Read-only sandbox. Allow this write or run once?")
         }
         if approval == "readOnly", writes, !((name == "bash") && isSafeReadOnlyCommand(command)) {
-            return name == "bash" ? "只读模式。允许运行这条命令？" : "只读模式。允许这次修改？"
+            return name == "bash" ? tr("只读模式。允许运行这条命令？", "Read-only mode. Allow this command?") : tr("只读模式。允许这次修改？", "Read-only mode. Allow this change?")
         }
         if approval != "never", (name == "bash" || name == "run_tests" || name == "open_pr"), isDestructive(command) {
-            return "这条命令可能删除或覆盖文件。允许执行？"
+            return tr("这条命令可能删除或覆盖文件。允许执行？", "This command may delete or overwrite files. Run it?")
         }
         if approval != "never", ["write_file", "edit_file", "apply_patch"].contains(name), let outside = outsidePath(arguments, root: root) {
-            return "要改工程以外的文件：\(outside)。允许？"
+            return tr("要改工程以外的文件：\(outside)。允许？", "Change files outside the project: \(outside)?")
         }
         if approval != "never", let what = sensitiveRead(name: name, arguments: arguments, root: root) {
-            return "要读取敏感位置：\(what)。允许这一次？"
+            return tr("要读取敏感位置：\(what)。允许这一次？", "Read a sensitive location: \(what). Allow once?")
         }
         if networked.contains(name) || ((name == "bash" || name == "run_tests") && needsNetwork(command)) {
-            return approval == "never" ? nil : "需要联网。允许这一次？"
+            return approval == "never" ? nil : tr("需要联网。允许这一次？", "Needs network access. Allow once?")
         }
         if sandbox == "full-access" && (name == "bash" || name == "run_tests") && approval != "never" {
-            return "完全访问。允许这条命令？"
+            return tr("完全访问。允许这条命令？", "Full access. Allow this command?")
         }
         return nil
     }
@@ -636,7 +636,7 @@ enum GrokClient {
             let rows = json?["data"] as? [[String: Any]]
             if let url = rows?.first?["url"] as? String, !url.isEmpty { return url }
         }
-        throw GrokClientError.badStatus(-1, "没有生成图片。")
+        throw GrokClientError.badStatus(-1, tr("没有生成图片。", "No image was generated."))
     }
 
     /// Async video generation: POST /v1/videos/generations then poll GET /v1/videos/{request_id}.
@@ -685,15 +685,15 @@ enum GrokClient {
             case "done":
                 let video = json["video"] as? [String: Any]
                 if video?["respect_moderation"] as? Bool == false {
-                    throw GrokClientError.badStatus(-1, "视频没有通过内容审核。")
+                    throw GrokClientError.badStatus(-1, tr("视频没有通过内容审核。", "The video didn't pass moderation."))
                 }
                 guard let raw = video?["url"] as? String, let url = URL(string: raw) else {
-                    throw GrokClientError.badStatus(-1, "没有拿到视频地址。")
+                    throw GrokClientError.badStatus(-1, tr("没有拿到视频地址。", "No video URL was returned."))
                 }
                 return url
             case "failed", "expired":
                 let message = ((json["error"] as? [String: Any])?["message"] as? String) ?? ""
-                throw GrokClientError.badStatus(-1, message.isEmpty ? "视频生成失败。" : "视频生成失败。\(message.prefix(160))")
+                throw GrokClientError.badStatus(-1, message.isEmpty ? tr("视频生成失败。", "Video generation failed.") : tr("视频生成失败。\(message.prefix(160))", "Video generation failed. \(message.prefix(160))"))
             default:
                 if let progress = json["progress"] as? Int {
                     await MainActor.run { onProgress(progress) }
@@ -701,7 +701,7 @@ enum GrokClient {
                 if status >= 400 { throw GrokClientError.badStatus(status, friendly(status, data)) }
             }
         }
-        throw GrokClientError.badStatus(-1, "视频生成超时。")
+        throw GrokClientError.badStatus(-1, tr("视频生成超时。", "Video generation timed out."))
     }
 }
 

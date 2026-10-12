@@ -20,10 +20,10 @@ enum ReplyTier: String, Codable, CaseIterable, Identifiable {
 
     var hint: String {
         switch self {
-        case .auto: "自动选择 Fast 或 Expert"
-        case .fast: "快速回答"
-        case .expert: "深度思考 · Grok 4.7"
-        case .heavy: "多专家协作 · Grok 4.7"
+        case .auto: tr("自动选择 Fast 或 Expert", "Picks Fast or Expert")
+        case .fast: tr("快速回答", "Quick answers")
+        case .expert: tr("深度思考 · Grok 4.7", "Deep thinking · Grok 4.7")
+        case .heavy: tr("多专家协作 · Grok 4.7", "Multi-expert · Grok 4.7")
         }
     }
 
@@ -71,9 +71,9 @@ enum AgentMode: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .code: "代码"
-        case .plan: "计划"
-        case .ask: "提问"
+        case .code: tr("代码", "Code")
+        case .plan: tr("计划", "Plan")
+        case .ask: tr("提问", "Ask")
         }
     }
 }
@@ -213,7 +213,7 @@ struct ChatSession: Identifiable, Codable, Equatable {
 
     static func fresh() -> ChatSession {
         let now = Date()
-        return ChatSession(id: UUID(), title: "新对话", createdAt: now, updatedAt: now, messages: [])
+        return ChatSession(id: UUID(), title: tr("新对话", "New chat"), createdAt: now, updatedAt: now, messages: [])
     }
 }
 
@@ -251,19 +251,19 @@ struct SlashCommand: Identifiable {
 }
 
 let slashCatalog: [SlashCommand] = [
-    .init(name: "/help", hint: "命令与快捷键"),
-    .init(name: "/new", hint: "新对话"),
+    .init(name: "/help", hint: tr("命令与快捷键", "Commands and shortcuts")),
+    .init(name: "/new", hint: tr("新对话", "New chat")),
     .init(name: "/model", hint: "auto · fast · expert · heavy"),
     .init(name: "/mode", hint: "code · plan · ask"),
-    .init(name: "/plan", hint: "计划模式"),
-    .init(name: "/ask", hint: "只回答"),
-    .init(name: "/code", hint: "代码模式"),
-    .init(name: "/context", hint: "上下文占用"),
-    .init(name: "/sessions", hint: "列出对话"),
-    .init(name: "/rename", hint: "重命名当前对话"),
-    .init(name: "/compact", hint: "压缩较早消息"),
-    .init(name: "/quit", hint: "退出应用"),
-    .init(name: "/project", hint: "当前工程文件夹"),
+    .init(name: "/plan", hint: tr("计划模式", "Plan mode")),
+    .init(name: "/ask", hint: tr("只回答", "Answer only")),
+    .init(name: "/code", hint: tr("代码模式", "Code mode")),
+    .init(name: "/context", hint: tr("上下文占用", "Context usage")),
+    .init(name: "/sessions", hint: tr("列出对话", "List conversations")),
+    .init(name: "/rename", hint: tr("重命名当前对话", "Rename this conversation")),
+    .init(name: "/compact", hint: tr("压缩较早消息", "Compact earlier messages")),
+    .init(name: "/quit", hint: tr("退出应用", "Quit the app")),
+    .init(name: "/project", hint: tr("当前工程文件夹", "Current project folder")),
 ]
 
 func slashSuggestions(_ input: String) -> [SlashCommand] {

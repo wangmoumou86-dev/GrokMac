@@ -25,7 +25,7 @@ enum ProjectStore {
     }
 
     static func label() -> String {
-        url()?.path ?? "还没有选择"
+        url()?.path ?? tr("还没有选择", "Not chosen yet")
     }
 }
 

@@ -18,22 +18,22 @@ struct GateBar: View {
                 .lineLimit(8)
                 .textSelection(.enabled)
             if model.gateKind == "ask" {
-                TextField("回答", text: $answer)
+                TextField(tr("回答", "Answer"), text: $answer)
                     .textFieldStyle(.roundedBorder)
                 HStack(spacing: 8) {
                     Spacer()
-                    GateButton(title: "跳过", filled: false) { model.decide("no") }
-                    GateButton(title: "回答", filled: true) { model.decide(answer) }
+                    GateButton(title: tr("跳过", "Skip"), filled: false) { model.decide("no") }
+                    GateButton(title: tr("回答", "Answer"), filled: true) { model.decide(answer) }
                         .keyboardShortcut(.defaultAction)
                 }
             } else {
                 HStack(spacing: 8) {
                     Spacer()
-                    GateButton(title: "拒绝", filled: false) { model.decide("no") }
+                    GateButton(title: tr("拒绝", "Deny"), filled: false) { model.decide("no") }
                     if model.gateKind.hasPrefix("approve-mcp:") {
-                        GateButton(title: "始终允许此服务器", filled: false) { model.decide("always") }
+                        GateButton(title: tr("始终允许此服务器", "Always allow this server"), filled: false) { model.decide("always") }
                     }
-                    GateButton(title: "允许", filled: true) { model.decide("yes") }
+                    GateButton(title: tr("允许", "Allow"), filled: true) { model.decide("yes") }
                         .keyboardShortcut(.defaultAction)
                 }
             }

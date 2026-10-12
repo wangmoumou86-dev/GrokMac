@@ -62,23 +62,34 @@ private struct PaletteSheet: View {
         let all = ["新对话", "Auto", "Fast", "Expert", "Heavy", "代码模式", "计划模式", "提问模式"] + (model.signedIn ? [] : ["登录"])
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         guard !q.isEmpty else { return all }
-        return all.filter { $0.lowercased().contains(q) }
+        return all.filter { $0.lowercased().contains(q) || label($0).lowercased().contains(q) }
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            TextField("搜索命令", text: $query)
+            TextField(tr("搜索命令", "Search commands"), text: $query)
                 .textFieldStyle(.plain)
                 .font(Theme.ui(15))
                 .padding()
             Divider()
             List(items, id: \.self) { item in
-                Button(item) { run(item) }
+                Button(label(item)) { run(item) }
                     .buttonStyle(.plain)
             }
             .frame(height: 280)
         }
         .frame(width: 420)
+    }
+
+    private func label(_ item: String) -> String {
+        switch item {
+        case "新对话": tr("新对话", "New chat")
+        case "代码模式": tr("代码模式", "Code mode")
+        case "计划模式": tr("计划模式", "Plan mode")
+        case "提问模式": tr("提问模式", "Ask mode")
+        case "登录": tr("登录", "Sign in")
+        default: item
+        }
     }
 
     private func run(_ item: String) {
@@ -112,32 +123,32 @@ private struct LoginGate: View {
                     .frame(width: 72, height: 72)
                 Text("Grok")
                     .font(Theme.ui(40, .medium))
-                Text("打开官方授权页，用 X、Google 或 Apple")
+                Text(tr("打开官方授权页，用 X、Google 或 Apple", "Open the official sign-in page and use X, Google or Apple"))
                     .foregroundStyle(.secondary)
-                Button(model.loginWaiting ? "重新打开授权页" : "登录") {
+                Button(model.loginWaiting ? tr("重新打开授权页", "Reopen sign-in page") : tr("登录", "Sign in")) {
                     model.beginLogin()
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 if model.loginWaiting {
-                    Text("授权后如果页面给了一串码，粘贴到这里")
+                    Text(tr("授权后如果页面给了一串码，粘贴到这里", "If the page shows a code after you authorize, paste it here"))
                         .font(Theme.ui(12))
                         .foregroundStyle(.secondary)
                     HStack {
-                        TextField("授权码", text: $pasted)
+                        TextField(tr("授权码", "Code"), text: $pasted)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 280)
                             .onSubmit(submitCode)
-                        Button("提交", action: submitCode)
+                        Button(tr("提交", "Submit"), action: submitCode)
                             .disabled(pasted.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
                     if model.loginFailed {
-                        Text("登录没有成功，检查授权码后再提交，或重新打开授权页")
+                        Text(tr("登录没有成功，检查授权码后再提交，或重新打开授权页", "Sign-in failed. Check the code and submit again, or reopen the sign-in page"))
                             .font(Theme.ui(12))
                             .foregroundStyle(.red)
                     }
                 }
-                Button("暂时跳过") {
+                Button(tr("暂时跳过", "Skip for now")) {
                     model.skipLogin()
                 }
                 .buttonStyle(.plain)

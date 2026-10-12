@@ -38,9 +38,9 @@ private struct LibraryPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Library").font(Theme.ui(26))
-                Text("生成的图片会收在这里。").foregroundStyle(.secondary)
+                Text(tr("生成的图片会收在这里。", "Generated images are collected here.")).foregroundStyle(.secondary)
                 if items.isEmpty {
-                    Text("还没有图片。去 Imagine 生成一张。").foregroundStyle(.secondary)
+                    Text(tr("还没有图片。去 Imagine 生成一张。", "No images yet. Make one in Imagine.")).foregroundStyle(.secondary)
                 } else {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 180))], spacing: 12) {
                         ForEach(items, id: \.0) { item in
@@ -75,11 +75,11 @@ private struct AutomationsPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Automations").font(Theme.ui(26))
-                Text("应用开着的时候，到点会在本地开一轮对话。对话里的命令和文件工具仍然只改你选的文件夹。").foregroundStyle(.secondary)
-                TextField("名称", text: $name).textFieldStyle(.roundedBorder)
-                TextField("到点要做的事", text: $prompt, axis: .vertical).textFieldStyle(.roundedBorder)
-                Stepper("每 \(hours) 小时", value: $hours, in: 1...168)
-                Button("添加") {
+                Text(tr("应用开着的时候，到点会在本地开一轮对话。对话里的命令和文件工具仍然只改你选的文件夹。", "While the app is open, each automation starts a new local conversation on schedule. Command and file tools still only change the folder you chose.")).foregroundStyle(.secondary)
+                TextField(tr("名称", "Name"), text: $name).textFieldStyle(.roundedBorder)
+                TextField(tr("到点要做的事", "What to do on schedule"), text: $prompt, axis: .vertical).textFieldStyle(.roundedBorder)
+                Stepper(tr("每 \(hours) 小时", "Every \(hours) h"), value: $hours, in: 1...168)
+                Button(tr("添加", "Add")) {
                     guard !prompt.trimmingCharacters(in: .whitespaces).isEmpty else { return }
                     model.addAutomation(name: name, prompt: prompt, everyHours: hours)
                     name = ""
@@ -89,17 +89,17 @@ private struct AutomationsPage: View {
                     HStack {
                         VStack(alignment: .leading) {
                             Text(item.name)
-                            Text(item.enabled ? "每 \(item.everyHours) 小时" : "已暂停").font(Theme.ui(11)).foregroundStyle(.secondary)
+                            Text(item.enabled ? tr("每 \(item.everyHours) 小时", "Every \(item.everyHours) h") : tr("已暂停", "Paused")).font(Theme.ui(11)).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button(item.enabled ? "暂停" : "启用") {
+                        Button(item.enabled ? tr("暂停", "Pause") : tr("启用", "Enable")) {
                             if let index = model.automations.firstIndex(where: { $0.id == item.id }) {
                                 model.automations[index].enabled.toggle()
                             }
                         }
-                        Button("立即运行") { model.runAutomation(item.id) }
+                        Button(tr("立即运行", "Run now")) { model.runAutomation(item.id) }
                             .disabled(model.busy)
-                        Button("删除", role: .destructive) { model.automations.removeAll { $0.id == item.id } }
+                        Button(tr("删除", "Delete"), role: .destructive) { model.automations.removeAll { $0.id == item.id } }
                     }
                 }
             }
@@ -154,7 +154,7 @@ private struct ConnectorsList: View {
             ForEach(GrokCatalog.connectors.filter { $0.group == "advertising" && matches($0, q) }) { item in
                 row(item)
             }
-            Text("GitHub 让 Grok 在对话里用本机的 gh 命令。其他账号还没有接入，标为即将支持；需要的话可以在 设置 → MCP 服务器 里添加对应的 MCP 服务器。")
+            Text(tr("GitHub 让 Grok 在对话里用本机的 gh 命令。其他账号还没有接入，标为即将支持；需要的话可以在 设置 → MCP 服务器 里添加对应的 MCP 服务器。", "GitHub lets Grok use the local gh command in chats. Other accounts aren't connected yet and are marked Coming soon; add a matching server under Settings → MCP Servers if you need one."))
                 .font(Theme.ui(11))
                 .foregroundStyle(.secondary)
                 .padding(.top, 8)
@@ -209,16 +209,16 @@ private struct SkillsEditor: View {
                         Text(skill.text).font(Theme.ui(11)).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button(skill.on ? "已启用" : "启用") {
+                    Button(skill.on ? tr("已启用", "Enabled") : tr("启用", "Enable")) {
                         if let index = model.skills.firstIndex(where: { $0.id == skill.id }) {
                             model.skills[index].on.toggle()
                         }
                     }
-                    Button("删除", role: .destructive) { model.skills.removeAll { $0.id == skill.id } }
+                    Button(tr("删除", "Delete"), role: .destructive) { model.skills.removeAll { $0.id == skill.id } }
                 }
             }
-            TextField("技能名称", text: $name).textFieldStyle(.roundedBorder)
-            TextField("交给 Grok 的说明", text: $text).textFieldStyle(.roundedBorder)
+            TextField(tr("技能名称", "Skill name"), text: $name).textFieldStyle(.roundedBorder)
+            TextField(tr("交给 Grok 的说明", "Instructions for Grok"), text: $text).textFieldStyle(.roundedBorder)
             Button("New Skill") {
                 guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
                 model.skills.append(GrokSkill(id: UUID(), name: name.isEmpty ? "Skill" : name, text: text, on: true))
@@ -241,23 +241,23 @@ private struct BotsEditor: View {
             ForEach(model.bots.filter { q.isEmpty || $0.name.lowercased().contains(q) }) { bot in
                 HStack {
                     VStack(alignment: .leading) {
-                        Text(bot.name + (model.activeBotID == bot.id ? " · 使用中" : ""))
+                        Text(bot.name + (model.activeBotID == bot.id ? tr(" · 使用中", " · In use") : ""))
                         Text(bot.prompt).lineLimit(2).font(Theme.ui(11)).foregroundStyle(.secondary)
                     }
                     Spacer()
                     if model.activeBotID == bot.id {
-                        Button("停用") { model.activeBotID = nil }
+                        Button(tr("停用", "Stop using")) { model.activeBotID = nil }
                     } else {
-                        Button("使用") { model.activeBotID = bot.id; model.place = .chat }
+                        Button(tr("使用", "Use")) { model.activeBotID = bot.id; model.place = .chat }
                     }
-                    Button("删除", role: .destructive) {
+                    Button(tr("删除", "Delete"), role: .destructive) {
                         if model.activeBotID == bot.id { model.activeBotID = nil }
                         model.bots.removeAll { $0.id == bot.id }
                     }
                 }
             }
-            TextField("Bot 名称", text: $name).textFieldStyle(.roundedBorder)
-            TextField("这个 Bot 怎么做事", text: $prompt, axis: .vertical).textFieldStyle(.roundedBorder)
+            TextField(tr("Bot 名称", "Bot name"), text: $name).textFieldStyle(.roundedBorder)
+            TextField(tr("这个 Bot 怎么做事", "How this bot works"), text: $prompt, axis: .vertical).textFieldStyle(.roundedBorder)
             Button("New Bot") {
                 guard !prompt.trimmingCharacters(in: .whitespaces).isEmpty else { return }
                 model.addBot(name: name, prompt: prompt)

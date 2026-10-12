@@ -99,7 +99,7 @@ final class MCPConnection: @unchecked Sendable {
         let pending = waiting
         waiting = [:]
         lock.unlock()
-        for (_, waiter) in pending { waiter.resume(throwing: MCPError.message("连接已关闭。")) }
+        for (_, waiter) in pending { waiter.resume(throwing: MCPError.message(tr("连接已关闭。", "Connection closed."))) }
         if let process, process.isRunning { process.terminate() }
         process = nil
     }
@@ -143,9 +143,9 @@ final class MCPConnection: @unchecked Sendable {
             self.waiting = [:]
             let tail = self.stderrTail
             self.lock.unlock()
-            for (_, waiter) in pending { waiter.resume(throwing: MCPError.message("服务器进程退出了。\(tail.suffix(200))")) }
+            for (_, waiter) in pending { waiter.resume(throwing: MCPError.message(tr("服务器进程退出了。\(tail.suffix(200))", "The server process exited. \(tail.suffix(200))"))) }
         }
-        do { try process.run() } catch { throw MCPError.message("启动失败：\(error.localizedDescription)") }
+        do { try process.run() } catch { throw MCPError.message(tr("启动失败：\(error.localizedDescription)", "Failed to start: \(error.localizedDescription)")) }
         self.process = process
         stdin = input.fileHandleForWriting
     }
@@ -179,7 +179,7 @@ final class MCPConnection: @unchecked Sendable {
         let waiter = waiting.removeValue(forKey: id)
         lock.unlock()
         if let error = message["error"] as? [String: Any] {
-            waiter?.resume(throwing: MCPError.message((error["message"] as? String) ?? "MCP 错误"))
+            waiter?.resume(throwing: MCPError.message((error["message"] as? String) ?? tr("MCP 错误", "MCP error")))
         } else {
             waiter?.resume(returning: message["result"] as? [String: Any] ?? [:])
         }
@@ -188,7 +188,7 @@ final class MCPConnection: @unchecked Sendable {
     private func write(_ object: [String: Any]) throws {
         var data = try JSONSerialization.data(withJSONObject: object)
         data.append(0x0A)
-        guard let stdin else { throw MCPError.message("服务器没有运行。") }
+        guard let stdin else { throw MCPError.message(tr("服务器没有运行。", "The server isn't running.")) }
         try stdin.write(contentsOf: data)
     }
 
@@ -203,8 +203,8 @@ final class MCPConnection: @unchecked Sendable {
         let id = allocateID()
         let message: [String: Any] = ["jsonrpc": "2.0", "id": id, "method": method, "params": params]
         if config.isHTTP {
-            guard let reply = try await post(message, expectID: id) else { throw MCPError.message("服务器没有返回结果。") }
-            if let error = reply["error"] as? [String: Any] { throw MCPError.message((error["message"] as? String) ?? "MCP 错误") }
+            guard let reply = try await post(message, expectID: id) else { throw MCPError.message(tr("服务器没有返回结果。", "The server returned no result.")) }
+            if let error = reply["error"] as? [String: Any] { throw MCPError.message((error["message"] as? String) ?? tr("MCP 错误", "MCP error")) }
             return reply["result"] as? [String: Any] ?? [:]
         }
         return try await withThrowingTaskGroup(of: [String: Any].self) { group in
@@ -218,8 +218,8 @@ final class MCPConnection: @unchecked Sendable {
             }
             group.addTask {
                 try await Task.sleep(for: .seconds(timeout))
-                self.take(id)?.resume(throwing: MCPError.message("\(method) 超时（\(Int(timeout)) 秒）。"))
-                throw MCPError.message("\(method) 超时。")
+                self.take(id)?.resume(throwing: MCPError.message(tr("\(method) 超时（\(Int(timeout)) 秒）。", "\(method) timed out (\(Int(timeout)) s).")))
+                throw MCPError.message(tr("\(method) 超时。", "\(method) timed out."))
             }
             let first = try await group.next()!
             group.cancelAll()
@@ -246,7 +246,7 @@ final class MCPConnection: @unchecked Sendable {
     // MARK: streamable HTTP
 
     private func post(_ message: [String: Any], expectID: Int?) async throws -> [String: Any]? {
-        guard let url = URL(string: config.url) else { throw MCPError.message("地址无效。") }
+        guard let url = URL(string: config.url) else { throw MCPError.message(tr("地址无效。", "Invalid URL.")) }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 120
@@ -257,7 +257,7 @@ final class MCPConnection: @unchecked Sendable {
         for (k, v) in config.headers { request.setValue(v, forHTTPHeaderField: k) }
         request.httpBody = try JSONSerialization.data(withJSONObject: message)
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw MCPError.message("连接失败。") }
+        guard let http = response as? HTTPURLResponse else { throw MCPError.message(tr("连接失败。", "Connection failed.")) }
         if let session = http.value(forHTTPHeaderField: "Mcp-Session-Id") { sessionID = session }
         guard (200..<300).contains(http.statusCode) else { throw MCPError.message("HTTP \(http.statusCode)") }
         guard let expectID else { return nil }
@@ -420,7 +420,7 @@ final class MCPManager {
 
     /// Runs a call and flattens the MCP content blocks: text joined, images saved to temp files.
     func call(_ tool: MCPTool, arguments: String) async -> (text: String, images: [String], ok: Bool) {
-        guard let connection = connections[tool.server] else { return ("服务器 \(tool.server) 没有连接。", [], false) }
+        guard let connection = connections[tool.server] else { return (tr("服务器 \(tool.server) 没有连接。", "Server \(tool.server) isn't connected."), [], false) }
         let args = (try? JSONSerialization.jsonObject(with: Data(arguments.utf8))) as? [String: Any] ?? [:]
         do {
             let result = try await connection.call(tool.name, arguments: args)
@@ -437,13 +437,13 @@ final class MCPManager {
                         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                         let url = dir.appendingPathComponent("\(tool.server)-\(UUID().uuidString.prefix(8)).\(ext)")
                         if (try? data.write(to: url)) != nil { images.append(url.path) }
-                        texts.append("[图片 \(url.lastPathComponent)]")
+                        texts.append(tr("[图片 \(url.lastPathComponent)]", "[image \(url.lastPathComponent)]"))
                     }
                 case "resource":
                     let res = block["resource"] as? [String: Any] ?? [:]
-                    texts.append((res["text"] as? String) ?? "[资源 \(res["uri"] as? String ?? "")]")
+                    texts.append((res["text"] as? String) ?? "[resource \(res["uri"] as? String ?? "")]")
                 case "resource_link":
-                    texts.append("[链接 \(block["uri"] as? String ?? "")]")
+                    texts.append("[link \(block["uri"] as? String ?? "")]")
                 default:
                     texts.append("[\(block["type"] as? String ?? "?")]")
                 }

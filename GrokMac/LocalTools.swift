@@ -6,7 +6,7 @@ enum LocalTools {
         let str = { (key: String) -> String in args[key] as? String ?? "" }
         let writes = ["write_file", "edit_file", "apply_patch", "todo_write", "undo"]
         if access == "read-only", writes.contains(name) {
-            return ("只读沙箱，这次没有批准写出。", false)
+            return (tr("只读沙箱，这次没有批准写出。", "Read-only sandbox; this write wasn't approved."), false)
         }
         switch name {
         case "bash":
@@ -44,7 +44,7 @@ enum LocalTools {
             let body = str("body").replacingOccurrences(of: "\"", with: "")
             return await bash(root: root, command: "git status --short && gh pr create --title \"\(title)\" --body \"\(body)\"", access: access)
         default:
-            return ("没有这个工具：\(name)", false)
+            return (tr("没有这个工具：\(name)", "No such tool: \(name)"), false)
         }
     }
 
@@ -78,7 +78,7 @@ enum LocalTools {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             snapshot(root: root, path: path)
             try String(content.prefix(200_000)).write(to: url, atomically: true, encoding: .utf8)
-            return ("已写入 \(path)", true)
+            return (tr("已写入 \(path)", "Wrote \(path)"), true)
         } catch {
             return (error.localizedDescription, false)
         }
@@ -89,10 +89,10 @@ enum LocalTools {
             let url = try resolve(root, path)
             let text = try String(contentsOf: url, encoding: .utf8)
             let hits = text.components(separatedBy: old).count - 1
-            guard !old.isEmpty, hits == 1 else { return ("需要恰好一处匹配，现在是 \(hits) 处。", false) }
+            guard !old.isEmpty, hits == 1 else { return (tr("需要恰好一处匹配，现在是 \(hits) 处。", "Needs exactly one match; found \(hits)."), false) }
             snapshot(root: root, path: path)
             try text.replacingOccurrences(of: old, with: new).write(to: url, atomically: true, encoding: .utf8)
-            return ("已修改 \(path)", true)
+            return (tr("已修改 \(path)", "Edited \(path)"), true)
         } catch {
             return (error.localizedDescription, false)
         }
@@ -102,11 +102,11 @@ enum LocalTools {
         let files = walk(root)
         let needle = pattern.lowercased()
         let hits = files.filter { $0.lowercased().contains(needle) }
-        return (clip(hits.joined(separator: "\n").isEmpty ? "没有匹配的文件。" : hits.joined(separator: "\n")), true)
+        return (clip(hits.joined(separator: "\n").isEmpty ? tr("没有匹配的文件。", "No matching files.") : hits.joined(separator: "\n")), true)
     }
 
     private static func grep(root: URL, pattern: String, scope: String) -> (String, Bool) {
-        guard !pattern.isEmpty else { return ("缺少要搜的文字。", false) }
+        guard !pattern.isEmpty else { return (tr("缺少要搜的文字。", "Missing search text."), false) }
         var hits: [String] = []
         for file in walk(root) where scope.isEmpty || file.hasPrefix(scope) {
             guard hits.count < 80, let url = try? resolve(root, file), let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
@@ -120,7 +120,7 @@ enum LocalTools {
                 }
             }
         }
-        return (clip(hits.isEmpty ? "没有匹配。" : hits.joined(separator: "\n")), true)
+        return (clip(hits.isEmpty ? tr("没有匹配。", "No matches.") : hits.joined(separator: "\n")), true)
     }
 
     private static func todo(root: URL, raw: Any?) -> (String, Bool) {
@@ -130,7 +130,7 @@ enum LocalTools {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             let data = try JSONSerialization.data(withJSONObject: todos, options: [.prettyPrinted])
             try data.write(to: url)
-            return ("已更新 \(todos.count) 条任务。", true)
+            return (tr("已更新 \(todos.count) 条任务。", "Updated \(todos.count) tasks."), true)
         } catch {
             return (error.localizedDescription, false)
         }
@@ -167,7 +167,7 @@ enum LocalTools {
         // runs with plain /bin/bash, still confined by the app's own App Sandbox, and the card says so.
         if access != "full", result.0.contains("sandbox_apply") {
             let retry = await shell(root: root, command: command, access: "full")
-            return ("（sandbox-exec 在应用沙盒里不可用，这条命令只受 App Sandbox 限制）\n" + retry.0, retry.1)
+            return (tr("（sandbox-exec 在应用沙盒里不可用，这条命令只受 App Sandbox 限制）\n", "(sandbox-exec is unavailable inside the app sandbox; this command is limited only by App Sandbox)\n") + retry.0, retry.1)
         }
         return result
     }
@@ -254,15 +254,15 @@ enum LocalTools {
                 continue
             }
         }
-        return ("没有搜到结果。", false)
+        return (tr("没有搜到结果。", "No results."), false)
     }
 
     private static func webFetch(_ raw: String) async -> (String, Bool) {
         guard let url = URL(string: raw), let host = url.host?.lowercased(), url.scheme == "http" || url.scheme == "https" else {
-            return ("只打开 http 或 https。", false)
+            return (tr("只打开 http 或 https。", "Only http or https can be opened."), false)
         }
         if host == "localhost" || host.hasSuffix(".local") || host.hasPrefix("127.") || host.hasPrefix("10.") || host.hasPrefix("192.168.") || host.hasPrefix("169.254.") || host == "0.0.0.0" {
-            return ("这个地址不能打开。", false)
+            return (tr("这个地址不能打开。", "This address can't be opened."), false)
         }
         do {
             let (data, response) = try await URLSession.shared.data(from: url)
@@ -293,7 +293,7 @@ enum LocalTools {
                 continue
             }
         }
-        return ("没有生成图片。", false)
+        return (tr("没有生成图片。", "No image was generated."), false)
     }
 
     private static func post(key: String, url: String, body: [String: Any]) async throws -> Data {
@@ -305,7 +305,7 @@ enum LocalTools {
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else { throw ToolFailure("请求失败（\(status)）。") }
+        guard status == 200 else { throw ToolFailure(tr("请求失败（\(status)）。", "Request failed (\(status)).")) }
         return data
     }
 
@@ -328,7 +328,7 @@ enum LocalTools {
     }
 
     private static func clip(_ text: String) -> String {
-        text.count > 8_000 ? String(text.prefix(8_000)) + "\n…截断" : text
+        text.count > 8_000 ? String(text.prefix(8_000)) + tr("\n…截断", "\n…truncated") : text
     }
 
     private static func snapshot(root: URL, path: String) {
@@ -347,24 +347,24 @@ enum LocalTools {
     private static func undo(root: URL) -> (String, Bool) {
         let log = root.appendingPathComponent(".grok/undo.json")
         guard var stack = (try? JSONSerialization.jsonObject(with: Data(contentsOf: log))) as? [[String: Any]], let last = stack.popLast() else {
-            return ("没有可撤销的修改。", false)
+            return (tr("没有可撤销的修改。", "Nothing to undo."), false)
         }
         if let data = try? JSONSerialization.data(withJSONObject: stack) { try? data.write(to: log) }
         let rel = last["path"] as? String ?? ""
-        guard let file = try? resolve(root, rel) else { return ("路径无效。", false) }
+        guard let file = try? resolve(root, rel) else { return (tr("路径无效。", "Invalid path."), false) }
         if last["content"] is NSNull || last["content"] == nil {
             try? FileManager.default.removeItem(at: file)
-            return ("已撤销新建 \(rel)", true)
+            return (tr("已撤销新建 \(rel)", "Undid creating \(rel)"), true)
         }
         let content = last["content"] as? String ?? ""
         try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? content.write(to: file, atomically: true, encoding: .utf8)
-        return ("已撤销 \(rel)", true)
+        return (tr("已撤销 \(rel)", "Undid \(rel)"), true)
     }
 
     private static func search(root: URL, query: String) -> (String, Bool) {
         let terms = query.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count > 1 }
-        guard !terms.isEmpty else { return ("没有可搜的词。", false) }
+        guard !terms.isEmpty else { return (tr("没有可搜的词。", "No search terms."), false) }
         var ranked: [(String, Int, [String])] = []
         for file in walk(root) {
             guard let url = try? resolve(root, file), let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
@@ -376,7 +376,7 @@ enum LocalTools {
         }
         ranked.sort { $0.1 > $1.1 }
         let body = ranked.prefix(5).map { "\($0.0)\n\($0.2.joined(separator: "\n"))" }.joined(separator: "\n\n")
-        return (clip(body.isEmpty ? "没有匹配。" : body), true)
+        return (clip(body.isEmpty ? tr("没有匹配。", "No matches.") : body), true)
     }
 
     private static func patch(root: URL, text: String) -> (String, Bool) {
@@ -396,20 +396,20 @@ enum LocalTools {
                 if let file = try? resolve(root, rel) {
                     try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
                     try? buf.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
-                    notes.append("已添加 \(rel)")
+                    notes.append(tr("已添加 \(rel)", "Added \(rel)"))
                 }
                 continue
             }
             if let rel = line.dropPrefix("*** Delete File: ") {
                 snapshot(root: root, path: rel)
                 if let file = try? resolve(root, rel) { try? FileManager.default.removeItem(at: file) }
-                notes.append("已删除 \(rel)")
+                notes.append(tr("已删除 \(rel)", "Deleted \(rel)"))
                 i += 1
                 continue
             }
             if let rel = line.dropPrefix("*** Update File: ") {
                 guard var current = (try? resolve(root, rel)).flatMap({ try? String(contentsOf: $0, encoding: .utf8) }) else {
-                    return ("读不到 \(rel)", false)
+                    return (tr("读不到 \(rel)", "Can't read \(rel)"), false)
                 }
                 snapshot(root: root, path: rel)
                 i += 1
@@ -419,7 +419,7 @@ enum LocalTools {
                     guard !oldLines.isEmpty || !newLines.isEmpty else { return nil }
                     let old = oldLines.joined(separator: "\n")
                     let hits = old.isEmpty ? 0 : current.components(separatedBy: old).count - 1
-                    if old.isEmpty || hits != 1 { return "\(rel) 的补丁对不上（\(hits) 处）。" }
+                    if old.isEmpty || hits != 1 { return tr("\(rel) 的补丁对不上（\(hits) 处）。", "Patch for \(rel) doesn't apply (\(hits) matches).") }
                     current = current.replacingOccurrences(of: old, with: newLines.joined(separator: "\n"))
                     oldLines = []
                     newLines = []
@@ -443,12 +443,12 @@ enum LocalTools {
                 if let file = try? resolve(root, rel) {
                     try? current.write(to: file, atomically: true, encoding: .utf8)
                 }
-                notes.append("已打补丁 \(rel)")
+                notes.append(tr("已打补丁 \(rel)", "Patched \(rel)"))
                 continue
             }
             i += 1
         }
-        return (notes.isEmpty ? "补丁里没有文件。" : notes.joined(separator: "\n"), !notes.isEmpty)
+        return (notes.isEmpty ? tr("补丁里没有文件。", "The patch has no files.") : notes.joined(separator: "\n"), !notes.isEmpty)
     }
 
     private static func testCommand(root: URL, requested: String) -> String {
@@ -458,7 +458,7 @@ enum LocalTools {
         if exists("Package.swift") { return "swift test" }
         if exists("pyproject.toml") || exists("pytest.ini") { return "pytest" }
         if exists("go.mod") { return "go test ./..." }
-        return "echo 没有认出测试命令"
+        return tr("echo 没有认出测试命令", "echo no test command recognized")
     }
 
     static func projectBrief(_ root: URL) -> String {

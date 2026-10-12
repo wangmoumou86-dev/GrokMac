@@ -25,20 +25,20 @@ private struct GrokCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .appSettings) {
-            Button("设置…") { model.showSettings = true }
+            Button(tr("设置…", "Settings…")) { model.showSettings = true }
                 .keyboardShortcut(",", modifiers: .command)
         }
         CommandGroup(replacing: .newItem) {
-            Button("新对话") { model.newSession() }
+            Button(tr("新对话", "New chat")) { model.newSession() }
                 .keyboardShortcut("n", modifiers: .command)
         }
-        CommandMenu("会话") {
-            Button("命令面板") { model.showPalette = true }
+        CommandMenu(tr("会话", "Session")) {
+            Button(tr("命令面板", "Command Palette")) { model.showPalette = true }
                 .keyboardShortcut("k", modifiers: .command)
             Divider()
-            modeButton("代码", .code)
-            modeButton("计划", .plan)
-            modeButton("提问", .ask)
+            modeButton(tr("代码", "Code"), .code)
+            modeButton(tr("计划", "Plan"), .plan)
+            modeButton(tr("提问", "Ask"), .ask)
             Divider()
             ForEach(ReplyTier.allCases) { tier in
                 tierButton("\(tier.title) · \(tier.hint)", tier)

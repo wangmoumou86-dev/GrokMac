@@ -133,7 +133,7 @@ final class AppModel {
         for index in sessions.indices {
             let before = sessions[index].messages.count
             sessions[index].messages.removeAll { message in
-                message.error && (message.content.contains("API Key") || message.content.contains("先登录"))
+                message.error && (message.content.contains("API Key") || message.content.contains("先登录") || message.content.contains("Sign in first"))
             }
             if sessions[index].messages.count != before { scheduleSave() }
         }
@@ -182,7 +182,7 @@ final class AppModel {
 
     func exportConversations() {
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = "Grok 对话导出.md"
+        panel.nameFieldStringValue = tr("Grok 对话导出.md", "Grok conversation export.md")
         panel.allowedContentTypes = [.init(filenameExtension: "md")!, .json]
         panel.message = tr("选 .md 导出为 Markdown，选 .json 导出原始数据。", "Use .md for Markdown or .json for raw data.")
         AttachedPanel.present(panel) { response in
@@ -206,7 +206,7 @@ final class AppModel {
             out += "# \(session.title)\n\n_\(stamp.string(from: session.createdAt))_\n\n"
             for message in session.messages where message.role != .meta {
                 switch message.role {
-                case .user: out += "**你**：\(message.content)\n\n"
+                case .user: out += tr("**你**：\(message.content)\n\n", "**You**: \(message.content)\n\n")
                 case .assistant: out += "**Grok**：\(message.content)\n\n"
                 case .tool:
                     if let tool = message.tool { out += "```\n$ \(tool.input)\n\(tool.output)\n```\n\n" }
@@ -242,7 +242,7 @@ final class AppModel {
     func rename(_ title: String) {
         let cleaned = title.trimmingCharacters(in: .whitespacesAndNewlines)
         updateActive { session in
-            session.title = String((cleaned.isEmpty ? "新对话" : cleaned).prefix(48))
+            session.title = String((cleaned.isEmpty ? tr("新对话", "New chat") : cleaned).prefix(48))
         }
     }
 
@@ -266,7 +266,7 @@ final class AppModel {
 
     func send(_ raw: String, surface: ChatSurface, attachments: [ComposerAttachment] = []) {
         var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if text.isEmpty, !attachments.isEmpty { text = attachments.contains { $0.kind == .image } ? "描述这张图片。" : "总结这份文档。" }
+        if text.isEmpty, !attachments.isEmpty { text = attachments.contains { $0.kind == .image } ? tr("描述这张图片。", "Describe this image.") : tr("总结这份文档。", "Summarize this document.") }
         guard !text.isEmpty, !busy else { return }
         if !attachments.isEmpty {
             deliver(text, surface: surface, attachments: attachments)
@@ -286,8 +286,8 @@ final class AppModel {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
-        panel.prompt = "选择工程"
-        panel.message = "工具只会读写这个文件夹。"
+        panel.prompt = tr("选择工程", "Choose project")
+        panel.message = tr("工具只会读写这个文件夹。", "Tools only read and write this folder.")
         AttachedPanel.present(panel) { response in
             guard response == .OK, let url = panel.url else { return }
             self.rememberProject(url)
@@ -299,7 +299,7 @@ final class AppModel {
             try ProjectStore.save(url)
             projectLabel = url.path
         } catch {
-            projectLabel = "没能记住这个文件夹"
+            projectLabel = tr("没能记住这个文件夹", "Couldn't remember this folder")
         }
     }
 
@@ -321,53 +321,53 @@ final class AppModel {
             return .done
         case "model", "m":
             guard !arg.isEmpty else {
-                return done("当前是 \(tier.title) · \(tier.hint)\n可选：auto、fast、expert、heavy")
+                return done(tr("当前是 \(tier.title) · \(tier.hint)\n可选：auto、fast、expert、heavy", "Current: \(tier.title) · \(tier.hint)\nOptions: auto, fast, expert, heavy"))
             }
             guard let next = ReplyTier(rawValue: arg.lowercased()) else {
-                return done("用法：/model auto|fast|expert|heavy")
+                return done(tr("用法：/model auto|fast|expert|heavy", "Usage: /model auto|fast|expert|heavy"))
             }
             tier = next
             scheduleSave()
-            return done("已切换到 \(next.title) · \(next.hint)")
+            return done(tr("已切换到 \(next.title) · \(next.hint)", "Switched to \(next.title) · \(next.hint)"))
         case "mode":
             guard !arg.isEmpty else {
-                return done("当前模式 \(mode.rawValue)\n可选：code、plan、ask。")
+                return done(tr("当前模式 \(mode.rawValue)\n可选：code、plan、ask。", "Current mode \(mode.rawValue)\nOptions: code, plan, ask."))
             }
             guard let next = AgentMode(rawValue: arg.lowercased()) else {
-                return done("用法：/mode code|plan|ask")
+                return done(tr("用法：/mode code|plan|ask", "Usage: /mode code|plan|ask"))
             }
             mode = next
             scheduleSave()
-            return done("模式：\(next.rawValue)")
+            return done(tr("模式：\(next.rawValue)", "Mode: \(next.rawValue)"))
         case "code", "plan", "ask":
             mode = AgentMode(rawValue: cmd) ?? mode
             scheduleSave()
-            if arg.isEmpty { return done("模式：\(cmd)") }
+            if arg.isEmpty { return done(tr("模式：\(cmd)", "Mode: \(cmd)")) }
             return .send(arg)
         case "context":
-            return done("上下文大约 \(contextPercent(active.messages))%（按字符估算，对照 128k tokens）")
+            return done(tr("上下文大约 \(contextPercent(active.messages))%（按字符估算，对照 128k tokens）", "Context is about \(contextPercent(active.messages))% (estimated from characters against 128k tokens)"))
         case "sessions":
             let lines = sessions.map { ($0.id == activeID ? "• " : "  ") + $0.title }.joined(separator: "\n")
-            return done(lines.isEmpty ? "没有对话" : lines)
+            return done(lines.isEmpty ? tr("没有对话", "No conversations") : lines)
         case "rename", "title":
-            guard !arg.isEmpty else { return done("用法：/rename 标题") }
+            guard !arg.isEmpty else { return done(tr("用法：/rename 标题", "Usage: /rename title")) }
             rename(arg)
-            return done("已重命名为 \(active.title)")
+            return done(tr("已重命名为 \(active.title)", "Renamed to \(active.title)"))
         case "compact":
             updateActive { session in
                 session.messages = Array(session.messages.filter { $0.role != .meta }.suffix(6))
             }
-            return done("已压缩较早的消息，只保留最近几轮。")
+            return done(tr("已压缩较早的消息，只保留最近几轮。", "Compacted earlier messages; kept the last few turns."))
         case "quit", "exit":
             NSApplication.shared.terminate(nil)
             return .done
         case "project", "folder":
-            return done("当前工程\n\(projectLabel)\n在设置（⌘,）里更换。工具只会改这个文件夹。")
+            return done(tr("当前工程\n\(projectLabel)\n在设置（⌘,）里更换。工具只会改这个文件夹。", "Current project\n\(projectLabel)\nChange it in Settings (⌘,). Tools only modify this folder."))
         case "undo":
             undoLastChange()
             return .done
         default:
-            return done("未知命令 /\(cmd)。输入 /help 查看。")
+            return done(tr("未知命令 /\(cmd)。输入 /help 查看。", "Unknown command /\(cmd). Type /help."))
         }
     }
 
@@ -395,7 +395,7 @@ final class AppModel {
         let assistant = ChatMessage(id: assistantID, role: .assistant, content: "", surface: surface, pending: true)
         let history = active.messages + [user]
         updateActive { session in
-            if session.title == "新对话" {
+            if session.title == "新对话" || session.title == "New chat" {
                 session.title = String(text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ").prefix(36))
             }
             session.updatedAt = .now
@@ -428,21 +428,21 @@ final class AppModel {
     private func runImagine(sessionID: UUID, messageID: UUID, prompt: String, key: String) async {
         do {
             let url = try await GrokClient.imagine(key: key, prompt: prompt)
-            finish(sessionID: sessionID, messageID: messageID, content: "![生成的图片](\(url))", error: false)
+            finish(sessionID: sessionID, messageID: messageID, content: tr("![生成的图片](\(url))", "![Generated image](\(url))"), error: false)
         } catch {
-            let message = (error as? LocalizedError)?.errorDescription ?? "没有生成图片。"
+            let message = (error as? LocalizedError)?.errorDescription ?? tr("没有生成图片。", "No image was generated.")
             finish(sessionID: sessionID, messageID: messageID, content: message, error: true)
         }
         busy = false
     }
 
     private func runVideo(sessionID: UUID, messageID: UUID, prompt: String, key: String) async {
-        replaceAssistant(sessionID: sessionID, messageID: messageID, content: "正在生成视频…", pending: true, error: false)
+        replaceAssistant(sessionID: sessionID, messageID: messageID, content: tr("正在生成视频…", "Generating video…"), pending: true, error: false)
         do {
             let remote = try await GrokClient.imagineVideo(key: key, prompt: prompt) { progress in
-                self.replaceAssistant(sessionID: sessionID, messageID: messageID, content: "正在生成视频… \(progress)%", pending: true, error: false)
+                self.replaceAssistant(sessionID: sessionID, messageID: messageID, content: tr("正在生成视频… \(progress)%", "Generating video… \(progress)%"), pending: true, error: false)
             }
-            replaceAssistant(sessionID: sessionID, messageID: messageID, content: "正在下载视频…", pending: true, error: false)
+            replaceAssistant(sessionID: sessionID, messageID: messageID, content: tr("正在下载视频…", "Downloading video…"), pending: true, error: false)
             // The returned URL is temporary, so keep a local copy.
             let (temp, _) = try await URLSession.shared.download(from: remote)
             let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -452,10 +452,10 @@ final class AppModel {
             try? FileManager.default.removeItem(at: local)
             try FileManager.default.moveItem(at: temp, to: local)
             updateMessage(sessionID: sessionID, messageID: messageID) { $0.video = local.path }
-            finish(sessionID: sessionID, messageID: messageID, content: "生成的视频", error: false)
+            finish(sessionID: sessionID, messageID: messageID, content: tr("生成的视频", "Generated video"), error: false)
         } catch {
             let cancelled = error is CancellationError || (error as? URLError)?.code == .cancelled
-            let message = cancelled ? "已停止。" : ((error as? LocalizedError)?.errorDescription ?? "没有生成视频。")
+            let message = cancelled ? tr("已停止。", "Stopped.") : ((error as? LocalizedError)?.errorDescription ?? tr("没有生成视频。", "No video was generated."))
             finish(sessionID: sessionID, messageID: messageID, content: message, error: !cancelled)
         }
         busy = false
@@ -468,7 +468,7 @@ final class AppModel {
         var root = access?.root ?? FileManager.default.homeDirectoryForCurrentUser
         if let access, useWorktree {
             guard let made = LocalTools.makeWorktree(root: access.root, session: sessionID) else {
-                finish(sessionID: sessionID, messageID: messageID, content: "没能建 Git worktree。这个文件夹得是一个 Git 仓库。", error: true)
+                finish(sessionID: sessionID, messageID: messageID, content: tr("没能建 Git worktree。这个文件夹得是一个 Git 仓库。", "Couldn't create a Git worktree. This folder must be a Git repository."), error: true)
                 busy = false
                 return
             }
@@ -510,18 +510,18 @@ final class AppModel {
                 }
             )
             if Task.isCancelled {
-                finish(sessionID: sessionID, messageID: messageID, content: acc.isEmpty ? "已停止。" : acc, error: false)
+                finish(sessionID: sessionID, messageID: messageID, content: acc.isEmpty ? tr("已停止。", "Stopped.") : acc, error: false)
             } else if acc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                finish(sessionID: sessionID, messageID: messageID, content: "做完了。", error: false)
+                finish(sessionID: sessionID, messageID: messageID, content: tr("做完了。", "Done."), error: false)
             } else {
                 finish(sessionID: sessionID, messageID: messageID, content: acc, error: false)
             }
         } catch {
             let cancelled = error is CancellationError || (error as? URLError)?.code == .cancelled
             if cancelled {
-                finish(sessionID: sessionID, messageID: messageID, content: acc.isEmpty ? "已停止。" : acc, error: false)
+                finish(sessionID: sessionID, messageID: messageID, content: acc.isEmpty ? tr("已停止。", "Stopped.") : acc, error: false)
             } else {
-                let message = (error as? LocalizedError)?.errorDescription ?? "Grok 没有完成回答。"
+                let message = (error as? LocalizedError)?.errorDescription ?? tr("Grok 没有完成回答。", "Grok didn't finish the answer.")
                 finish(sessionID: sessionID, messageID: messageID, content: acc.isEmpty ? message : acc + "\n\n" + message, error: true)
             }
         }

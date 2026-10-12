@@ -99,7 +99,7 @@ final class Prefs {
 }
 
 /// Picks the Chinese or English string for the interface language.
-@MainActor
+/// Reads the stored preference directly so tool and network code off the main actor can use it too.
 func tr(_ zh: String, _ en: String) -> String {
-    Prefs.shared.language == "en" ? en : zh
+    UserDefaults.standard.string(forKey: "grok.pref.language") == "en" ? en : zh
 }
