@@ -1,27 +1,17 @@
 import AppKit
-import AuthenticationServices
 
 @MainActor
-final class LoginSession: NSObject, ASWebAuthenticationPresentationContextProviding {
-    static let shared = LoginSession()
-    private var session: ASWebAuthenticationSession?
-
-    func start() {
-        let url = URL(string: "https://accounts.x.ai/sign-in")!
-        let next = ASWebAuthenticationSession(url: url, callbackURLScheme: "grokmac") { _, _ in
-            Task { @MainActor in
-                self.session = nil
+enum LoginSession {
+    static func start() {
+        guard let url = URL(string: "https://accounts.x.ai/sign-in") else { return }
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        NSWorkspace.shared.open(url, configuration: config) { _, error in
+            if error != nil {
+                DispatchQueue.main.async {
+                    NSWorkspace.shared.open(url)
+                }
             }
         }
-        next.presentationContextProvider = self
-        next.prefersEphemeralWebBrowserSession = false
-        session = next
-        if !next.start() {
-            NSWorkspace.shared.open(url)
-        }
-    }
-
-    func presentationAnchor(for _: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        NSApp.keyWindow ?? ASPresentationAnchor()
     }
 }

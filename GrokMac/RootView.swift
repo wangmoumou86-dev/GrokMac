@@ -128,9 +128,12 @@ private struct LoginGate: View {
         ZStack {
             Color.black.opacity(0.94).ignoresSafeArea()
             VStack(spacing: 16) {
+                Image("GrokMark")
+                    .resizable()
+                    .frame(width: 72, height: 72)
                 Text("Grok")
                     .font(.system(size: 40, weight: .medium))
-                Text("用 X、Google 或 Apple 登录")
+                Text("会在浏览器打开 accounts.x.ai")
                     .foregroundStyle(.secondary)
                 Button("登录") {
                     LoginSession.shared.start()
