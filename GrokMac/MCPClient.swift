@@ -267,12 +267,12 @@ final class MCPManager {
     @ObservationIgnored private var connections: [String: MCPConnection] = [:]
     @ObservationIgnored private var started = false
 
-    static var fileURL: URL {
+    nonisolated static var fileURL: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("GrokMac/mcp.json")
     }
 
-    static func qualified(_ server: String, _ tool: String) -> String {
+    nonisolated static func qualified(_ server: String, _ tool: String) -> String {
         func clean(_ s: String) -> String { String(s.map { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" ? $0 : "_" }) }
         return String("mcp__\(clean(server))__\(clean(tool))".prefix(64))
     }
