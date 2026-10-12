@@ -11,8 +11,6 @@ struct SettingsView: View {
                 .tabItem { Label(tr("通用", "General"), systemImage: "gearshape") }
             PersonalSettings()
                 .tabItem { Label(tr("个性化", "Personalize"), systemImage: "person.text.rectangle") }
-            VoiceSettings()
-                .tabItem { Label(tr("语音", "Voice"), systemImage: "waveform") }
             DataSettings()
                 .tabItem { Label(tr("数据", "Data"), systemImage: "externaldrive") }
             accountForm
@@ -213,45 +211,6 @@ private struct PersonalSettings: View {
             if text.isEmpty { prefs.memories.remove(at: index) } else { prefs.memories[index] = String(text.prefix(500)) }
         }
         editing = nil
-    }
-}
-
-private struct VoiceSettings: View {
-    @Bindable private var prefs = Prefs.shared
-    @State private var voices: [String] = ["eve", "ara", "altair", "atlas", "aurora", "carina", "castor", "celeste"]
-
-    var body: some View {
-        Form {
-            Section(tr("实时语音", "Realtime voice")) {
-                Picker(tr("声音", "Voice"), selection: $prefs.voice) {
-                    ForEach(voices.contains(prefs.voice) ? voices : [prefs.voice] + voices, id: \.self) { id in
-                        Text(id.capitalized).tag(id)
-                    }
-                }
-                Toggle(tr("整理口述内容", "Refine dictation"), isOn: $prefs.refineDictation)
-                Text(tr("开启后会提示 Grok 忽略口头禅，存进对话的文字也会去掉“嗯、呃、um”等填充词。", "Grok is told to ignore filler words, and saved transcripts drop fillers like “um” and “uh”."))
-                    .font(Theme.ui(11))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .warmForm()
-        .task { await loadVoices() }
-    }
-
-    /// Built-in voices from GET /v1/tts/voices (https://docs.x.ai/developers/model-capabilities/audio/text-to-speech).
-    private func loadVoices() async {
-        let key = KeychainStore.load().trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else { return }
-        var request = URLRequest(url: URL(string: "https://api.x.ai/v1/tts/voices")!)
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 15
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let list = json["voices"] as? [[String: Any]]
-        else { return }
-        let ids = list.compactMap { $0["voice_id"] as? String }
-        if !ids.isEmpty { voices = ids }
     }
 }
 

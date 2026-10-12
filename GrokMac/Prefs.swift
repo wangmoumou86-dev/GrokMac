@@ -23,8 +23,6 @@ final class Prefs {
     var memories: [String] { didSet { store.set(memories, forKey: "grok.pref.memories") } }
     var useLocation: Bool { didSet { store.set(useLocation, forKey: "grok.pref.location") } }
     var city: String { didSet { store.set(city, forKey: "grok.pref.city") } }
-    var refineDictation: Bool { didSet { store.set(refineDictation, forKey: "grok.pref.refineDictation") } }
-    var voice: String { didSet { store.set(voice, forKey: "grok.pref.voice") } }
 
     private init() {
         theme = store.string(forKey: "grok.pref.theme") ?? "dark"
@@ -38,8 +36,9 @@ final class Prefs {
         memories = store.stringArray(forKey: "grok.pref.memories") ?? []
         useLocation = store.bool(forKey: "grok.pref.location")
         city = store.string(forKey: "grok.pref.city") ?? ""
-        refineDictation = store.object(forKey: "grok.pref.refineDictation") as? Bool ?? true
-        voice = store.string(forKey: "grok.pref.voice") ?? "eve"
+        // Voice mode was removed; drop its stored settings.
+        store.removeObject(forKey: "grok.pref.refineDictation")
+        store.removeObject(forKey: "grok.pref.voice")
     }
 
     var colorScheme: ColorScheme? {
@@ -59,7 +58,7 @@ final class Prefs {
         ("tutor", "导师", "Tutor", "Act as a patient tutor: explain step by step, check understanding, and give small exercises."),
     ]
 
-    /// Extra system text sent with every chat and voice request.
+    /// Extra system text sent with every chat request.
     func personalNote() -> String {
         var lines: [String] = []
         if let preset = Self.presets.first(where: { $0.id == stylePreset }), !preset.prompt.isEmpty {
@@ -79,19 +78,6 @@ final class Prefs {
         }
         if language == "en" { lines.append("The app interface is in English.") }
         return lines.joined(separator: "\n")
-    }
-
-    /// Removes filler words from spoken text before it is saved to the chat.
-    func refine(_ spoken: String) -> String {
-        guard refineDictation else { return spoken }
-        var text = spoken
-        let patterns = [#"(?i)\b(um+|uh+|erm+|you know)\b[,，]?\s*"#, #"[嗯呃啊额]{1,3}[，,。…]*"#, #"(就是说|那个那个|然后然后)"#]
-        for pattern in patterns {
-            text = text.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
-        }
-        text = text.replacingOccurrences(of: #"\s{2,}"#, with: " ", options: .regularExpression)
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? spoken : trimmed
     }
 
     func requestNotifications() {

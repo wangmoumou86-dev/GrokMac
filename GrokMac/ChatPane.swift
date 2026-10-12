@@ -90,19 +90,6 @@ struct ChatPane: View {
         }
         .background(Theme.base)
         .navigationTitle(model.active.title)
-        .toolbar {
-            ToolbarItemGroup {
-                Button {
-                    Speaker.shared.speakLast(in: model.active)
-                } label: {
-                    Image(systemName: "waveform")
-                }
-                .help(tr("朗读上一条回答", "Read the last reply aloud"))
-            }
-        }
-        .sheet(isPresented: Binding(get: { model.voiceOpen }, set: { if !$0 { model.endVoice() } })) {
-            VoicePanel()
-        }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.plainText, .utf8PlainText, .sourceCode, .json]) { result in
             guard case .success(let url) = result else { return }
             let scoped = url.startAccessingSecurityScopedResource()
@@ -211,16 +198,6 @@ struct ChatPane: View {
 
 
                 Spacer()
-                if model.place != .imagine {
-                    Button {
-                        model.startVoice()
-                    } label: {
-                        Image(systemName: "mic")
-                    }
-                    .buttonStyle(ComposerIconButtonStyle())
-                    .help(tr("语音对话", "Voice mode"))
-                    .disabled(model.busy)
-                }
                 Button {
                     if model.busy { model.stop() } else { submit() }
                 } label: {
@@ -600,67 +577,7 @@ private struct VideoCard: View {
     }
 }
 
-private struct VoicePanel: View {
-    @Environment(AppModel.self) private var model
-
-    private var status: String {
-        switch model.voice.phase {
-        case .idle: "未连接"
-        case .connecting: "正在连接…"
-        case .listening: "正在听"
-        case .userSpeaking: "你在说话"
-        case .grokSpeaking: "Grok 正在说"
-        case .failed(let message): message
-        }
-    }
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("语音对话")
-                .font(Theme.ui(17, .medium))
-            Image(systemName: model.voice.phase == .grokSpeaking ? "waveform" : "mic.fill")
-                .font(Theme.ui(44))
-                .symbolEffect(.pulse, isActive: model.voice.active)
-                .foregroundStyle(model.voice.active ? Color.primary : Color.secondary)
-                .frame(height: 64)
-            Text(status)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(model.voice.lines) { line in
-                            Text((line.fromUser ? "你：" : "Grok：") + line.text)
-                                .foregroundStyle(line.fromUser ? Color.secondary : Color.primary)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .id(line.id)
-                        }
-                    }
-                    .padding(4)
-                }
-                .onChange(of: model.voice.lines.last?.text) { _, _ in
-                    if let id = model.voice.lines.last?.id { proxy.scrollTo(id, anchor: .bottom) }
-                }
-            }
-            .frame(height: 200)
-            HStack {
-                if case .failed = model.voice.phase {
-                    Button("重试") { model.startVoice() }
-                }
-                Button("结束") { model.endVoice() }
-                    .keyboardShortcut(.cancelAction)
-            }
-            Text("说完会自动发送，随时可以打断。结束后对话文字会保存到当前会话。")
-                .font(Theme.ui(11))
-                .foregroundStyle(.secondary)
-        }
-        .padding(24)
-        .frame(width: 420)
-    }
-}
-
-/// 40pt round icon button used inside the composer (attach, voice).
+/// 40pt round icon button used inside the composer (attach).
 struct ComposerIconButtonStyle: ButtonStyle {
     var size: CGFloat = 40
 

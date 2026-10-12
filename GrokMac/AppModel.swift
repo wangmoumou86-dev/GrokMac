@@ -40,8 +40,6 @@ final class AppModel {
     var useWorktree = false
     /// Video only when the user picks Imagine → 视频; reset whenever Imagine is left.
     var imagineVideo = false
-    var voiceOpen = false
-    let voice = VoiceSession()
     var gateTitle = ""
     var gateDetail = ""
     var gateKind = ""
@@ -435,34 +433,6 @@ final class AppModel {
             finish(sessionID: sessionID, messageID: messageID, content: message, error: true)
         }
         busy = false
-    }
-
-    func startVoice() {
-        voiceOpen = true
-        let instructions = "You are Grok, built by xAI, talking with the user by voice in a Mac app. Reply in the user's language, briefly and naturally, the way people speak. Voice mode has no local tools, but the app's text chat can run commands and read and write the user's files; if they ask for that, tell them to type the request in the chat. " + contextNote()
-        let key = KeychainStore.load()
-        let refine = Prefs.shared.refineDictation ? " The user's speech may include filler words and false starts; respond to what they mean." : ""
-        let chosenVoice = Prefs.shared.voice
-        Task { await voice.start(key: key, instructions: instructions + refine, voice: chosenVoice) }
-    }
-
-    /// Ends voice mode and keeps the spoken exchange in the current chat.
-    func endVoice() {
-        voice.stop()
-        voiceOpen = false
-        let spoken = voice.lines.filter { !$0.text.hasPrefix("⚠️") }
-        guard !spoken.isEmpty else { return }
-        updateActive { session in
-            for line in spoken {
-                session.messages.append(ChatMessage(role: line.fromUser ? .user : .assistant, content: line.fromUser ? Prefs.shared.refine(line.text) : line.text, surface: .web))
-            }
-            if session.title == "新对话", let first = spoken.first(where: \.fromUser) {
-                session.title = String(first.text.prefix(36))
-            }
-            session.updatedAt = .now
-        }
-        voice.lines = []
-        scheduleSave()
     }
 
     private func runVideo(sessionID: UUID, messageID: UUID, prompt: String, key: String) async {

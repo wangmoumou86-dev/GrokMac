@@ -182,7 +182,6 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Grok;
 				INFOPLIST_KEY_CFBundleName = Grok;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "语音对话需要使用麦克风，把你说的话发送给 Grok。";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -216,7 +215,6 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Grok;
 				INFOPLIST_KEY_CFBundleName = Grok;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "语音对话需要使用麦克风，把你说的话发送给 Grok。";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
