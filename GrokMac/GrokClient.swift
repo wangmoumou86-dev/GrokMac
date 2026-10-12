@@ -30,6 +30,7 @@ enum GrokClient {
         mode: AgentMode,
         surface: ChatSurface,
         note: String = "",
+        search: [String] = [],
         onEvent: @escaping @MainActor (StreamEvent) -> Void
     ) async throws {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -51,6 +52,10 @@ enum GrokClient {
             "store": false,
             "input": [["role": "system", "content": systemPrompt(tier: tier, mode: mode, surface: surface) + (note.isEmpty ? "" : "\n" + note)]] + prior,
         ]
+        // Server-side search tools: https://docs.x.ai/docs/guides/tools/search-tools and https://docs.x.ai/developers/tools/x-search
+        if !search.isEmpty {
+            payload["tools"] = search.map { ["type": $0] }
+        }
         if let effort = tier.effort {
             payload["reasoning"] = ["effort": effort]
         }

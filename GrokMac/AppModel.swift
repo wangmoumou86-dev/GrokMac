@@ -30,6 +30,12 @@ final class AppModel {
     var sandboxMode = "workspace-write"
     var approvalPolicy = "on-request"
     var useWorktree = false
+    var webSearch = UserDefaults.standard.bool(forKey: "grok.webSearch") {
+        didSet { UserDefaults.standard.set(webSearch, forKey: "grok.webSearch") }
+    }
+    var xSearch = UserDefaults.standard.bool(forKey: "grok.xSearch") {
+        didSet { UserDefaults.standard.set(xSearch, forKey: "grok.xSearch") }
+    }
     var gateTitle = ""
     var gateDetail = ""
     var gateKind = ""
@@ -293,6 +299,7 @@ final class AppModel {
         let key = KeychainStore.load()
         let imagine = place == .imagine && surface == .web
         let note = contextNote()
+        let search = (webSearch ? ["web_search"] : []) + (xSearch ? ["x_search"] : [])
         chatTask?.cancel()
         chatTask = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -312,11 +319,18 @@ final class AppModel {
                     tier: chosenTier,
                     mode: chosenMode,
                     surface: surface,
-                    note: note
+                    note: note,
+                    search: search
                 ) { event in
-                    guard case .text(let chunk) = event else { return }
-                    acc += chunk
-                    self.replaceAssistant(sessionID: sessionID, messageID: assistantID, content: acc, pending: true, error: false)
+                    switch event {
+                    case .text(let chunk):
+                        acc += chunk
+                        self.replaceAssistant(sessionID: sessionID, messageID: assistantID, content: acc, pending: true, error: false)
+                    case .citations(let links):
+                        self.updateMessage(sessionID: sessionID, messageID: assistantID) { $0.citations = links }
+                    case .reasoning:
+                        break
+                    }
                 }
                 if Task.isCancelled {
                     self.finish(sessionID: sessionID, messageID: assistantID, content: acc.isEmpty ? "已停止。" : acc, error: false)
@@ -460,6 +474,14 @@ final class AppModel {
         session.messages[messageIndex].content = content
         session.messages[messageIndex].pending = pending
         session.messages[messageIndex].error = error
+        sessions[index] = session
+    }
+
+    private func updateMessage(sessionID: UUID, messageID: UUID, _ change: (inout ChatMessage) -> Void) {
+        guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
+        var session = sessions[index]
+        guard let messageIndex = session.messages.firstIndex(where: { $0.id == messageID }) else { return }
+        change(&session.messages[messageIndex])
         sessions[index] = session
     }
 

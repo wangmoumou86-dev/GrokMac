@@ -113,6 +113,13 @@ struct ChatPane: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
 
+                if model.place != .imagine {
+                    SearchToggle(title: "联网", icon: "globe", on: model.webSearch) { model.webSearch.toggle() }
+                        .help("让 Grok 搜索网页并附上来源")
+                    SearchToggle(title: "X", icon: "at", on: model.xSearch) { model.xSearch.toggle() }
+                        .help("让 Grok 搜索 X 上的帖子")
+                }
+
                 Spacer()
                 Button {
                     if model.busy { model.stop() } else { submit() }
@@ -175,8 +182,61 @@ private struct MessageRow: View {
                     MarkdownView(text: message.content)
                         .foregroundStyle(message.error ? Color(red: 0.88, green: 0.36, blue: 0.39) : Color.primary)
                 }
+                if let links = message.citations, !links.isEmpty {
+                    SourceList(links: links)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+private struct SearchToggle: View {
+    var title: String
+    var icon: String
+    var on: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .font(.callout)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(on ? Color.accentColor.opacity(0.25) : Color.white.opacity(0.06)))
+                .foregroundStyle(on ? Color.primary : Color.secondary)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct SourceList: View {
+    var links: [String]
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("来源 · \(links.count)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            ForEach(Array(links.prefix(expanded ? links.count : 5).enumerated()), id: \.offset) { index, link in
+                if let url = URL(string: link) {
+                    Link(destination: url) {
+                        Text("\(index + 1). \(url.host() ?? link)\(url.path().count > 1 ? url.path() : "")")
+                            .font(.caption)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .help(link)
+                }
+            }
+            if links.count > 5 {
+                Button(expanded ? "收起" : "显示全部 \(links.count) 个来源") { expanded.toggle() }
+                    .buttonStyle(.plain)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.top, 4)
     }
 }

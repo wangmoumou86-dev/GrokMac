@@ -172,6 +172,7 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     var error: Bool
     var tool: ToolTrace?
     var image: String?
+    var citations: [String]?
 
     init(
         id: UUID = UUID(),
