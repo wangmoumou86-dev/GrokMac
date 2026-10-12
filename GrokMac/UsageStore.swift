@@ -232,6 +232,9 @@ struct UsageSettings: View {
             ForEach(Dictionary(grouping: rows, by: \.model).sorted { $0.key < $1.key }, id: \.key) { name, list in line(name, list) }
             Divider()
             ForEach(Dictionary(grouping: rows, by: { $0.session }).sorted { sum($0.value) > sum($1.value) }.prefix(15), id: \.key) { id, list in line(title(id), list) }
+            if !store.grokComStatus.isEmpty {
+                LabeledContent("grok.com/rest/rate-limits", value: store.grokComStatus).font(Theme.mono(11))
+            }
             Button(tr("清空用量记录", "Clear usage history"), role: .destructive) { store.clear() }
                 .disabled(store.records.isEmpty)
         }
