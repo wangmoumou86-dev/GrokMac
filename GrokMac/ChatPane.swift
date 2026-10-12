@@ -8,6 +8,7 @@ struct ChatPane: View {
     @State private var importing = false
     @State private var attachments: [ComposerAttachment] = []
     @State private var dropping = false
+    @State private var modelHover = false
 
     private var visible: [ChatMessage] {
         model.active.messages.filter { $0.role != .meta }
@@ -22,7 +23,7 @@ struct ChatPane: View {
                     Text(model.place == .imagine ? (model.imagineVideo ? "描述你要的视频" : "描述你要的图片") : "可以直接让 Grok 在这台 Mac 上运行命令、读写工程文件")
                         .foregroundStyle(.secondary)
                     composer
-                        .frame(maxWidth: 720)
+                        .frame(maxWidth: Theme.composerWidth)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(24)
@@ -51,7 +52,7 @@ struct ChatPane: View {
                     composer
                         .padding(.horizontal, 24)
                         .padding(.bottom, 16)
-                        .frame(maxWidth: 760)
+                        .frame(maxWidth: Theme.composerWidth + 48)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -99,7 +100,12 @@ struct ChatPane: View {
             }
             TextField(Prefs.shared.commandEnterSends ? tr("询问任何问题（⌘↩ 发送）", "Ask anything (⌘↩ to send)") : tr("询问任何问题", "Ask anything"), text: $draft, axis: .vertical)
                 .textFieldStyle(.plain)
+                .font(.system(size: 16))
+                .lineSpacing(6)
                 .lineLimit(1...6)
+                .padding(.horizontal, 8)
+                .padding(.top, 14)
+                .padding(.bottom, 6)
                 .onKeyPress(keys: [.return]) { press in
                     guard Prefs.shared.commandEnterSends else { return .ignored }
                     if press.modifiers.contains(.command) {
@@ -112,14 +118,16 @@ struct ChatPane: View {
                     return .handled
                 }
                 .onSubmit { if !Prefs.shared.commandEnterSends { submit() } }
-            HStack {
+            HStack(spacing: 4) {
                 Menu {
                     Button(tr("插入文本文件", "Insert text file")) { importing = true }
                 } label: {
                     Image(systemName: "plus")
                 }
                 .menuStyle(.borderlessButton)
-                .frame(width: 28)
+                .menuIndicator(.hidden)
+                .frame(width: 40, height: 40)
+                .contentShape(Circle())
 
                 if model.place != .imagine {
                     Button {
@@ -127,7 +135,7 @@ struct ChatPane: View {
                     } label: {
                         Image(systemName: "paperclip")
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(ComposerIconButtonStyle())
                     .help(tr("添加图片或 PDF（也可以直接拖进来）", "Add images or PDFs (or drag them in)"))
                 }
 
@@ -145,9 +153,15 @@ struct ChatPane: View {
                     }
                 } label: {
                     Text(model.tier.title)
+                        .font(.system(size: 14, weight: .medium))
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
+                .padding(.horizontal, 16)
+                .frame(height: 40)
+                .background(Capsule().fill(modelHover ? Theme.hover : Color.clear))
+                .onHover { modelHover = $0 }
+                .help(tr("选择模型", "Choose model"))
 
                 if model.place == .imagine {
                     Picker("", selection: Binding(get: { model.imagineVideo }, set: { model.imagineVideo = $0 })) {
@@ -173,9 +187,8 @@ struct ChatPane: View {
                         model.startVoice()
                     } label: {
                         Image(systemName: "mic")
-                            .frame(width: 28, height: 28)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(ComposerIconButtonStyle())
                     .help(tr("语音对话", "Voice mode"))
                     .disabled(model.busy)
                 }
@@ -183,8 +196,8 @@ struct ChatPane: View {
                     if model.busy { model.stop() } else { submit() }
                 } label: {
                     Image(systemName: model.busy ? "stop.fill" : "arrow.up")
-                        .font(.body.weight(.semibold))
-                        .frame(width: 28, height: 28)
+                        .font(.system(size: 15, weight: .semibold))
+                        .frame(width: 40, height: 40)
                         .background(Circle().fill(canSend || model.busy ? Theme.buttonFilled : Theme.buttonDisabled))
                         .foregroundStyle(canSend || model.busy ? Theme.buttonFilledFg : Theme.fg3)
                 }
@@ -193,9 +206,12 @@ struct ChatPane: View {
                 .keyboardShortcut(.return, modifiers: .command)
             }
         }
-        .padding(12)
-        .background(Theme.composer, in: RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(dropping ? Color.accentColor : Theme.composerBorder))
+        .padding(.horizontal, 10)
+        .padding(.bottom, 10)
+        .padding(.top, attachments.isEmpty ? 0 : 10)
+        .frame(minHeight: 102)
+        .background(Theme.composer, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(dropping ? Color.accentColor : Theme.composerBorder, lineWidth: 1))
         .onDrop(of: [.fileURL], isTargeted: $dropping) { providers in
             guard model.place != .imagine else { return false }
             for provider in providers {
@@ -307,15 +323,19 @@ private struct SearchToggle: View {
     var icon: String
     var on: Bool
     var action: () -> Void
+    @State private var hover = false
 
     var body: some View {
         Button(action: action) {
             Label(title, systemImage: icon)
-                .font(.callout)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Capsule().fill(on ? Color.accentColor.opacity(0.25) : Theme.surface2))
-                .foregroundStyle(on ? Color.primary : Color.secondary)
+                .font(.system(size: 14, weight: .medium))
+                .padding(.horizontal, 14)
+                .frame(height: 36)
+                .background(Capsule().fill(hover && !on ? Theme.hover : Color.clear))
+                .overlay(Capsule().stroke(on ? Theme.link : Color.clear, lineWidth: 1))
+                .foregroundStyle(on ? Theme.link : Theme.fg2)
+                .contentShape(Capsule())
+                .onHover { hover = $0 }
         }
         .buttonStyle(.plain)
     }
@@ -513,5 +533,31 @@ private struct VoicePanel: View {
         }
         .padding(24)
         .frame(width: 420)
+    }
+}
+
+/// 40pt round icon button used inside the composer (attach, voice).
+struct ComposerIconButtonStyle: ButtonStyle {
+    var size: CGFloat = 40
+
+    func makeBody(configuration: Configuration) -> some View {
+        HoverCircle(pressed: configuration.isPressed, size: size) { configuration.label }
+    }
+}
+
+private struct HoverCircle<Label: View>: View {
+    var pressed: Bool
+    var size: CGFloat
+    @ViewBuilder var label: Label
+    @State private var hover = false
+
+    var body: some View {
+        label
+            .font(.system(size: size >= 40 ? 16 : 14))
+            .foregroundStyle(Theme.fg2)
+            .frame(width: size, height: size)
+            .background(Circle().fill(hover || pressed ? Theme.hover : Color.clear))
+            .contentShape(Circle())
+            .onHover { hover = $0 }
     }
 }
