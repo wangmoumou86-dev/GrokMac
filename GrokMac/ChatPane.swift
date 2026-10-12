@@ -186,13 +186,10 @@ struct ChatPane: View {
                 }
 
                 if model.place == .imagine {
-                    Picker("", selection: Binding(get: { model.imagineVideo }, set: { model.imagineVideo = $0 })) {
-                        Text("图片").tag(false)
-                        Text("视频").tag(true)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .fixedSize()
+                    SegmentedTabs(selection: Binding(get: { model.imagineVideo }, set: { model.imagineVideo = $0 }), options: [
+                        (false, "图片"),
+                        (true, "视频"),
+                    ])
                     .help("生成图片或视频")
                 }
 

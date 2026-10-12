@@ -103,14 +103,11 @@ private struct HubPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Picker("页", selection: Bindable(model).hubTab) {
-                Text(tr("连接器", "Connectors")).tag("connectors")
-                Text("Skills").tag("skills")
-                Text(tr("机器人", "Bots")).tag("bots")
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: 360)
+            SegmentedTabs(selection: Bindable(model).hubTab, options: [
+                ("connectors", tr("连接器", "Connectors")),
+                ("skills", "Skills"),
+                ("bots", tr("机器人", "Bots")),
+            ])
             TextField("Search...", text: $query).textFieldStyle(.roundedBorder)
             ScrollView {
                 if model.hubTab == "skills" {
