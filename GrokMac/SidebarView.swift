@@ -32,10 +32,10 @@ struct SidebarView: View {
                             HStack(spacing: 4) {
                                 Text("Bots")
                                 Image(systemName: model.botsOpen ? "chevron.down" : "chevron.right")
-                                    .font(.system(size: 10, weight: .semibold))
+                                    .font(Theme.ui(10, .semibold))
                                     .foregroundStyle(Theme.fg3)
                             }
-                            .font(.system(size: 15))
+                            .font(Theme.ui(15))
                             .foregroundStyle(Theme.sidebarFg)
                         }
                         .buttonStyle(.plain)
@@ -78,7 +78,7 @@ struct SidebarView: View {
                         }
                     } header: {
                         Text(group.title)
-                            .font(.system(size: 15))
+                            .font(Theme.ui(15))
                             .foregroundStyle(Theme.sidebarFg)
                             .textCase(nil)
                     }
@@ -171,12 +171,12 @@ private struct SidebarRow: View {
         HStack(spacing: 8) {
             if let symbol {
                 Image(systemName: symbol)
-                    .font(.system(size: 14))
+                    .font(Theme.ui(14))
                     .frame(width: 18)
                     .foregroundStyle(Theme.fg2)
             }
             Text(title)
-                .font(.system(size: 14))
+                .font(Theme.ui(14))
                 .foregroundStyle(Theme.fg1)
                 .lineLimit(1)
             Spacer(minLength: 0)
@@ -202,11 +202,11 @@ private struct AccountRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "person.crop.circle.fill")
-                .font(.system(size: 26))
+                .font(Theme.ui(26))
                 .foregroundStyle(Theme.fg3)
             VStack(alignment: .leading, spacing: 0) {
-                Text(title).font(.system(size: 14, weight: .medium)).foregroundStyle(Theme.fg1)
-                Text(subtitle).font(.system(size: 12)).foregroundStyle(Theme.fg3)
+                Text(title).font(Theme.ui(14, .medium)).foregroundStyle(Theme.fg1)
+                Text(subtitle).font(Theme.ui(12)).foregroundStyle(Theme.fg3)
             }
             Spacer(minLength: 0)
         }

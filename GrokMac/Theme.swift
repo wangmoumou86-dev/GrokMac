@@ -1,4 +1,5 @@
 import AppKit
+import CoreText
 import SwiftUI
 
 /// Semantic colors measured from grok.com (warm grays). Each resolves against the
@@ -26,6 +27,40 @@ enum Theme {
     static let link = dynamic(light: 0x3F5FD9, dark: 0x8EA5F0)
     static let danger = dynamic(light: 0xB3242F, dark: 0xE15C64)
     static let scrim = Color.black.opacity(0.94)
+
+    // MARK: Typography
+    // Bundled OFL fonts (Fonts/): Inter for UI chrome, Source Serif 4 for reply prose.
+    // Code stays SF Mono. Core Text's default cascade falls back to PingFang for CJK.
+
+    static let uiFamily = "Inter"
+    static let proseFamily = "Source Serif 4"
+    static let proseSize: CGFloat = 16
+    static let proseLineSpacing: CGFloat = 8
+
+    /// Registers the bundled fonts for this process only. Call once at launch.
+    static func registerFonts() {
+        let urls = ["ttf", "otf"].flatMap { Bundle.main.urls(forResourcesWithExtension: $0, subdirectory: nil) ?? [] }
+        guard !urls.isEmpty else { return }
+        CTFontManagerRegisterFontURLs(urls as CFArray, .process, true, nil)
+    }
+
+    /// Inter at the given size; weights Regular, Medium and SemiBold are bundled.
+    static func ui(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+        .custom(uiFamily, size: size).weight(weight)
+    }
+
+    /// Source Serif 4 for assistant prose (Regular, Semibold, Italic bundled).
+    static func prose(_ size: CGFloat = proseSize, _ weight: Font.Weight = .regular) -> Font {
+        .custom(proseFamily, size: size).weight(weight)
+    }
+
+    static func proseHeading(level: Int) -> Font {
+        prose(level <= 1 ? 22 : level == 2 ? 19 : 17, .semibold)
+    }
+
+    static func mono(_ size: CGFloat) -> Font {
+        .system(size: size, design: .monospaced)
+    }
 
     /// Measured layout values.
     static let contentWidth: CGFloat = 704

@@ -10,9 +10,15 @@ struct MarkdownView: View {
                 switch block {
                 case .prose(let value):
                     Text(markdown(value))
-                        .font(.system(size: 15))
-                        .lineSpacing(7.5)
+                        .font(Theme.prose())
+                        .lineSpacing(Theme.proseLineSpacing)
                         .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                case .heading(let level, let value):
+                    Text(markdown(value))
+                        .font(Theme.proseHeading(level: level))
+                        .textSelection(.enabled)
+                        .padding(.top, 4)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 case .code(let lang, let code):
                     CodeBlock(lang: lang, code: code)
@@ -31,7 +37,7 @@ private struct CodeBlock: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text(lang.isEmpty ? "text" : lang)
-                    .font(.system(size: 14))
+                    .font(Theme.ui(14))
                     .foregroundStyle(Theme.fg2)
                 Spacer()
                 Button {
@@ -44,7 +50,7 @@ private struct CodeBlock: View {
                     }
                 } label: {
                     Label(copied ? tr("已复制", "Copied") : tr("复制", "Copy"), systemImage: copied ? "checkmark" : "doc.on.doc")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(Theme.ui(13, .medium))
                         .foregroundStyle(Theme.fg2)
                         .padding(.horizontal, 10)
                         .frame(height: 32)
@@ -79,7 +85,7 @@ private struct CodeBlock: View {
 
     private var codeText: some View {
         Text(code)
-            .font(.system(size: 13.5, design: .monospaced))
+            .font(Theme.mono(13.5))
             .lineSpacing(4)
             .foregroundStyle(Theme.fg1)
             .textSelection(.enabled)
@@ -88,6 +94,7 @@ private struct CodeBlock: View {
 
 private enum Block {
     case prose(String)
+    case heading(Int, String)
     case code(String, String)
 }
 
@@ -108,8 +115,13 @@ private func blocks(_ source: String) -> [Block] {
             output.append(.code(lang, code.joined(separator: "\n")))
             continue
         }
+        if let heading = headingLine(lines[index]) {
+            output.append(heading)
+            index += 1
+            continue
+        }
         var prose: [String] = []
-        while index < lines.count, !lines[index].hasPrefix("```") {
+        while index < lines.count, !lines[index].hasPrefix("```"), headingLine(lines[index]) == nil {
             prose.append(lines[index])
             index += 1
         }
@@ -118,6 +130,12 @@ private func blocks(_ source: String) -> [Block] {
     }
     if output.isEmpty, !source.isEmpty { output.append(.prose(source)) }
     return output
+}
+
+private func headingLine(_ line: String) -> Block? {
+    let hashes = line.prefix(while: { $0 == "#" }).count
+    guard (1...6).contains(hashes), line.dropFirst(hashes).first == " " else { return nil }
+    return .heading(hashes, String(line.dropFirst(hashes + 1)).trimmingCharacters(in: .whitespaces))
 }
 
 private func markdown(_ text: String) -> AttributedString {

@@ -31,7 +31,7 @@ struct SettingsView: View {
                     Button("登录") { model.beginLogin() }
                 }
                 Text("打开 xAI 官方登录页 accounts.x.ai，用 X、Google 或 Apple 授权。")
-                    .font(.caption)
+                    .font(Theme.ui(11))
                     .foregroundStyle(.secondary)
             }
             Section("沙箱") {
@@ -55,16 +55,16 @@ struct SettingsView: View {
                     set: { model.setWorktree($0) }
                 ))
                 Text("应用不再使用 App Sandbox。命令可以读写你的用户目录；删除、覆盖、改工程外文件或联网前会停下来问。完全访问去掉命令级的限制。")
-                    .font(.caption)
+                    .font(Theme.ui(11))
                     .foregroundStyle(.secondary)
                 Button("撤销上一次改动") { model.undoLastChange() }
             }
             Section("工程文件夹") {
                 Text(model.projectLabel)
-                    .font(.caption)
+                    .font(Theme.ui(11))
                     .textSelection(.enabled)
                 Text("对话里 Grok 运行命令时以这个文件夹为当前目录，没选时用你的用户目录。它可以读写用户目录里的任何文件；删除、覆盖或改工程外文件前会先问你。")
-                    .font(.caption)
+                    .font(Theme.ui(11))
                     .foregroundStyle(.secondary)
                 Button("选择文件夹") { model.chooseProject() }
             }
@@ -90,7 +90,7 @@ private struct GeneralSettings: View {
                     Text("English").tag("en")
                 }
                 Text(tr("界面语言目前覆盖设置、输入框和侧边栏；其余文字仍是中文。", "English currently covers Settings, the composer and the sidebar; other text is still Chinese."))
-                    .font(.caption)
+                    .font(Theme.ui(11))
                     .foregroundStyle(.secondary)
             }
             Section(tr("对话", "Chat")) {
@@ -104,7 +104,7 @@ private struct GeneralSettings: View {
                     }
                 ))
                 Text(tr("只在应用不在前台时通知。", "Only when the app is in the background."))
-                    .font(.caption)
+                    .font(Theme.ui(11))
                     .foregroundStyle(.secondary)
             }
         }
@@ -129,12 +129,12 @@ private struct PersonalSettings: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(tr("自定义指令", "Custom instructions"))
                     TextEditor(text: $prefs.customInstructions)
-                        .font(.body)
+                        .font(Theme.ui(13))
                         .frame(minHeight: 80)
                         .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.3)))
                 }
                 Text(tr("每次请求都会把预设和自定义指令发给 Grok，只存在这台 Mac 上。", "The preset and instructions go with every request and are stored only on this Mac."))
-                    .font(.caption)
+                    .font(Theme.ui(11))
                     .foregroundStyle(.secondary)
             }
             Section(tr("本地记忆", "Local memory")) {
@@ -189,7 +189,7 @@ private struct PersonalSettings: View {
                     TextField(tr("城市（可选）", "City (optional)"), text: $prefs.city)
                 }
                 Text(tr("只发送你填的城市、系统地区和时区，不读取 GPS。", "Only the city you enter, your system region and time zone are sent. No GPS."))
-                    .font(.caption)
+                    .font(Theme.ui(11))
                     .foregroundStyle(.secondary)
             }
         }
@@ -226,7 +226,7 @@ private struct VoiceSettings: View {
                 }
                 Toggle(tr("整理口述内容", "Refine dictation"), isOn: $prefs.refineDictation)
                 Text(tr("开启后会提示 Grok 忽略口头禅，存进对话的文字也会去掉“嗯、呃、um”等填充词。", "Grok is told to ignore filler words, and saved transcripts drop fillers like “um” and “uh”."))
-                    .font(.caption)
+                    .font(Theme.ui(11))
                     .foregroundStyle(.secondary)
             }
         }
@@ -269,12 +269,12 @@ private struct DataSettings: View {
                     status = tr("已清除缓存，释放 \(freed)。", "Cache cleared, freed \(freed).")
                 }
                 Text(tr("会删掉网络缓存和生成的视频文件，对话不受影响。", "Removes the network cache and generated video files. Conversations stay."))
-                    .font(.caption)
+                    .font(Theme.ui(11))
                     .foregroundStyle(.secondary)
             }
             if !status.isEmpty {
                 Text(status)
-                    .font(.caption)
+                    .font(Theme.ui(11))
             }
         }
         .formStyle(.grouped)

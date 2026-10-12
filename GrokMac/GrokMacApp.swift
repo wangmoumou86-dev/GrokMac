@@ -4,9 +4,14 @@ import SwiftUI
 struct GrokMacApp: App {
     @State private var model = AppModel()
 
+    init() {
+        Theme.registerFonts()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
+                .font(Theme.ui(13))
                 .environment(model)
                 .preferredColorScheme(Prefs.shared.colorScheme)
         }
@@ -15,6 +20,7 @@ struct GrokMacApp: App {
 
         Settings {
             SettingsView()
+                .font(Theme.ui(13))
                 .environment(model)
                 .preferredColorScheme(Prefs.shared.colorScheme)
         }

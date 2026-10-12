@@ -28,7 +28,7 @@ private struct LibraryPage: View {
         }
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Library").font(.largeTitle)
+                Text("Library").font(Theme.ui(26))
                 Text("生成的图片会收在这里。").foregroundStyle(.secondary)
                 if items.isEmpty {
                     Text("还没有图片。去 Imagine 生成一张。").foregroundStyle(.secondary)
@@ -65,7 +65,7 @@ private struct AutomationsPage: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Automations").font(.largeTitle)
+                Text("Automations").font(Theme.ui(26))
                 Text("应用开着的时候，到点会在本地开一轮对话。对话里的命令和文件工具仍然只改你选的文件夹。").foregroundStyle(.secondary)
                 TextField("名称", text: $name).textFieldStyle(.roundedBorder)
                 TextField("到点要做的事", text: $prompt, axis: .vertical).textFieldStyle(.roundedBorder)
@@ -80,7 +80,7 @@ private struct AutomationsPage: View {
                     HStack {
                         VStack(alignment: .leading) {
                             Text(item.name)
-                            Text(item.enabled ? "每 \(item.everyHours) 小时" : "已暂停").font(.caption).foregroundStyle(.secondary)
+                            Text(item.enabled ? "每 \(item.everyHours) 小时" : "已暂停").font(Theme.ui(11)).foregroundStyle(.secondary)
                         }
                         Spacer()
                         Button(item.enabled ? "暂停" : "启用") {
@@ -132,20 +132,20 @@ private struct ConnectorsList: View {
     var body: some View {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         VStack(alignment: .leading, spacing: 8) {
-            Text("Connected").font(.title3)
+            Text("Connected").font(Theme.ui(15))
             ForEach(GrokCatalog.connectors.filter { $0.group == "connected" && matches($0, q) }) { item in
                 row(item)
             }
-            Text("Featured").font(.title3).padding(.top, 12)
+            Text("Featured").font(Theme.ui(15)).padding(.top, 12)
             ForEach(GrokCatalog.connectors.filter { $0.group == "featured" && matches($0, q) }) { item in
                 row(item)
             }
-            Text("Advertising").font(.title3).padding(.top, 12)
+            Text("Advertising").font(Theme.ui(15)).padding(.top, 12)
             ForEach(GrokCatalog.connectors.filter { $0.group == "advertising" && matches($0, q) }) { item in
                 row(item)
             }
             Text("GitHub 可以让 Grok 在对话里用 gh 搜仓库。其他账号点 Add 只是记在这台 Mac 上，没有官方令牌就读不到邮件和网盘。")
-                .font(.caption)
+                .font(Theme.ui(11))
                 .foregroundStyle(.secondary)
                 .padding(.top, 8)
         }
@@ -164,7 +164,7 @@ private struct ConnectorsList: View {
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name)
-                Text(item.blurb).font(.caption).foregroundStyle(.secondary)
+                Text(item.blurb).font(Theme.ui(11)).foregroundStyle(.secondary)
             }
             Spacer(minLength: 12)
             Button(model.connected.contains(item.id) ? "✓ Added" : "Add") {
@@ -190,7 +190,7 @@ private struct SkillsEditor: View {
                 HStack {
                     VStack(alignment: .leading) {
                         Text(skill.name)
-                        Text(skill.text).font(.caption).foregroundStyle(.secondary)
+                        Text(skill.text).font(Theme.ui(11)).foregroundStyle(.secondary)
                     }
                     Spacer()
                     Button(skill.on ? "已启用" : "启用") {
@@ -225,7 +225,7 @@ private struct BotsEditor: View {
                 HStack {
                     VStack(alignment: .leading) {
                         Text(bot.name + (model.activeBotID == bot.id ? " · 使用中" : ""))
-                        Text(bot.prompt).lineLimit(2).font(.caption).foregroundStyle(.secondary)
+                        Text(bot.prompt).lineLimit(2).font(Theme.ui(11)).foregroundStyle(.secondary)
                     }
                     Spacer()
                     Button("使用") { model.activeBotID = bot.id; model.place = .chat }

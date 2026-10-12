@@ -44,7 +44,7 @@ private struct GateBar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(model.gateTitle).font(.headline)
+            Text(model.gateTitle).font(Theme.ui(13, .semibold))
             Text(model.gateDetail)
                 .font(.caption.monospaced())
                 .lineLimit(8)
@@ -87,7 +87,7 @@ private struct PaletteSheet: View {
         VStack(spacing: 0) {
             TextField("搜索命令", text: $query)
                 .textFieldStyle(.plain)
-                .font(.title3)
+                .font(Theme.ui(15))
                 .padding()
             Divider()
             List(items, id: \.self) { item in
@@ -129,7 +129,7 @@ private struct LoginGate: View {
                     .resizable()
                     .frame(width: 72, height: 72)
                 Text("Grok")
-                    .font(.system(size: 40, weight: .medium))
+                    .font(Theme.ui(40, .medium))
                 Text("打开官方授权页，用 X、Google 或 Apple")
                     .foregroundStyle(.secondary)
                 Button(model.loginWaiting ? "重新打开授权页" : "登录") {
@@ -139,7 +139,7 @@ private struct LoginGate: View {
                 .controlSize(.large)
                 if model.loginWaiting {
                     Text("授权后如果页面给了一串码，粘贴到这里")
-                        .font(.callout)
+                        .font(Theme.ui(12))
                         .foregroundStyle(.secondary)
                     HStack {
                         TextField("授权码", text: $pasted)
@@ -151,7 +151,7 @@ private struct LoginGate: View {
                     }
                     if model.loginFailed {
                         Text("登录没有成功，检查授权码后再提交，或重新打开授权页")
-                            .font(.callout)
+                            .font(Theme.ui(12))
                             .foregroundStyle(.red)
                     }
                 }

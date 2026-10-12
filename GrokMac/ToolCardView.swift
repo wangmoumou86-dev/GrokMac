@@ -31,10 +31,10 @@ struct ToolCardView: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: open ? "chevron.down" : "chevron.right")
-                        .font(.caption2)
+                        .font(Theme.ui(10))
                         .foregroundStyle(.secondary)
                     Image(systemName: icon)
-                        .font(.caption)
+                        .font(Theme.ui(11))
                     Text(tool.name == "bash" ? "$ " + tool.input : "\(tool.name)  \(tool.input)")
                         .font(.caption.monospaced())
                         .lineLimit(1)
@@ -44,7 +44,7 @@ struct ToolCardView: View {
                         ProgressView().controlSize(.mini)
                     }
                     Text(statusText)
-                        .font(.caption)
+                        .font(Theme.ui(11))
                         .foregroundStyle(tool.status == "error" ? Theme.danger : .secondary)
                 }
                 .contentShape(Rectangle())

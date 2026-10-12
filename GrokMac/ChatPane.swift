@@ -19,7 +19,7 @@ struct ChatPane: View {
             if visible.isEmpty {
                 VStack(spacing: 24) {
                     Text(model.place == .imagine ? tr("想象点什么？", "What should we imagine?") : tr("今天有什么可以帮你？", "How can I help you today?"))
-                        .font(.system(size: 24, weight: .semibold))
+                        .font(Theme.ui(24, .semibold))
                         .tracking(-0.48)
                         .foregroundStyle(Theme.fg1)
                     composer
@@ -29,7 +29,7 @@ struct ChatPane: View {
                             ForEach(homeSuggestions, id: \.self) { item in
                                 Button { draft = item } label: {
                                     Text(item)
-                                        .font(.system(size: 14))
+                                        .font(Theme.ui(14))
                                         .foregroundStyle(Theme.fg2)
                                         .padding(.horizontal, 12)
                                         .frame(height: 32)
@@ -112,13 +112,13 @@ struct ChatPane: View {
                 }
                 if attachments.contains(where: { $0.kind == .pdf }) {
                     Text("PDF 只发送提取出的文字（最多 \(ComposerAttachment.maxPDFChars / 1000)k 字符），扫描件里的图片不会被读取。")
-                        .font(.caption2)
+                        .font(Theme.ui(10))
                         .foregroundStyle(.secondary)
                 }
             }
             TextField(Prefs.shared.commandEnterSends ? tr("询问任何问题（⌘↩ 发送）", "Ask anything (⌘↩ to send)") : tr("询问任何问题", "Ask anything"), text: $draft, axis: .vertical)
                 .textFieldStyle(.plain)
-                .font(.system(size: 16))
+                .font(Theme.ui(16))
                 .lineSpacing(6)
                 .lineLimit(1...6)
                 .padding(.horizontal, 8)
@@ -171,7 +171,7 @@ struct ChatPane: View {
                     }
                 } label: {
                     Text(model.tier.title)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(Theme.ui(14, .medium))
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
@@ -214,7 +214,7 @@ struct ChatPane: View {
                     if model.busy { model.stop() } else { submit() }
                 } label: {
                     Image(systemName: model.busy ? "stop.fill" : "arrow.up")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(Theme.ui(15, .semibold))
                         .frame(width: 40, height: 40)
                         .background(Circle().fill(canSend || model.busy ? Theme.buttonFilled : Theme.buttonDisabled))
                         .foregroundStyle(canSend || model.busy ? Theme.buttonFilledFg : Theme.fg3)
@@ -289,7 +289,7 @@ private struct MessageRow: View {
                 VStack(alignment: .leading, spacing: 4) {
                     if message.surface == .cli {
                         Text("来自终端")
-                            .font(.caption)
+                            .font(Theme.ui(11))
                             .foregroundStyle(.secondary)
                     }
                     if let files = message.files, !files.isEmpty {
@@ -306,12 +306,12 @@ private struct MessageRow: View {
                         }
                         ForEach(files.filter { $0.lowercased().hasSuffix(".pdf") }, id: \.self) { name in
                             Label(name, systemImage: "doc.richtext")
-                                .font(.caption)
+                                .font(Theme.ui(11))
                                 .foregroundStyle(.secondary)
                         }
                     }
                     Text(message.content)
-                        .font(.system(size: 15))
+                        .font(Theme.ui(15))
                         .lineSpacing(7.5)
                         .foregroundStyle(Theme.fg1)
                         .textSelection(.enabled)
@@ -356,7 +356,7 @@ private struct SearchToggle: View {
     var body: some View {
         Button(action: action) {
             Label(title, systemImage: icon)
-                .font(.system(size: 14, weight: .medium))
+                .font(Theme.ui(14, .medium))
                 .padding(.horizontal, 14)
                 .frame(height: 36)
                 .background(Capsule().fill(hover && !on ? Theme.hover : Color.clear))
@@ -385,7 +385,7 @@ private struct SourceList: View {
                         }
                     }
                     Text(tr("\(links.count) 个来源", "\(links.count) sources"))
-                        .font(.system(size: 14))
+                        .font(Theme.ui(14))
                         .foregroundStyle(Theme.fg1)
                         .padding(.leading, 2)
                 }
@@ -405,7 +405,7 @@ private struct SourceList: View {
                             HStack(spacing: 6) {
                                 Favicon(host: url.host() ?? "")
                                 Text("\(url.host() ?? url.absoluteString)\(url.path().count > 1 ? url.path() : "")")
-                                    .font(.system(size: 13))
+                                    .font(Theme.ui(13))
                                     .lineLimit(1)
                                     .truncationMode(.middle)
                             }
@@ -429,7 +429,7 @@ private struct Favicon: View {
             image.resizable().scaledToFit()
         } placeholder: {
             Text(String(host.replacingOccurrences(of: "www.", with: "").prefix(1)).uppercased())
-                .font(.system(size: 9, weight: .semibold))
+                .font(Theme.ui(9, .semibold))
                 .foregroundStyle(Theme.fg2)
         }
         .frame(width: 14, height: 14)
@@ -455,10 +455,10 @@ private struct ThinkingSection: View {
                 HStack(spacing: 4) {
                     Text(live ? tr("思考中…", "Thinking…") : tr("已思考", "Thought"))
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(Theme.ui(10, .semibold))
                         .rotationEffect(.degrees(isOpen ? 90 : 0))
                 }
-                .font(.system(size: 14))
+                .font(Theme.ui(14))
                 .foregroundStyle(Theme.fg2)
                 .padding(.top, 12)
                 .frame(height: 36, alignment: .bottom)
@@ -468,7 +468,7 @@ private struct ThinkingSection: View {
             if isOpen {
                 ScrollView {
                     Text(text)
-                        .font(.system(size: 14))
+                        .font(Theme.ui(14))
                         .lineSpacing(4)
                         .foregroundStyle(Theme.fg2)
                         .textSelection(.enabled)
@@ -536,12 +536,12 @@ private struct AttachmentChip: View {
                 Image(systemName: "doc.richtext")
             }
             Text(item.name)
-                .font(.caption)
+                .font(Theme.ui(11))
                 .lineLimit(1)
                 .frame(maxWidth: 140)
             if item.kind == .pdf {
                 Text("文字 \((item.text ?? "").count) 字")
-                    .font(.caption2)
+                    .font(Theme.ui(10))
                     .foregroundStyle(.secondary)
             }
             Button(action: remove) {
@@ -574,10 +574,10 @@ private struct VideoCard: View {
                     Button("存储为…") { saveCopy() }
                 }
                 .buttonStyle(.link)
-                .font(.caption)
+                .font(Theme.ui(11))
             } else {
                 Text("视频文件已不在本机。")
-                    .font(.caption)
+                    .font(Theme.ui(11))
                     .foregroundStyle(.secondary)
             }
         }
@@ -610,9 +610,9 @@ private struct VoicePanel: View {
     var body: some View {
         VStack(spacing: 16) {
             Text("语音对话")
-                .font(.title2.weight(.medium))
+                .font(Theme.ui(17, .medium))
             Image(systemName: model.voice.phase == .grokSpeaking ? "waveform" : "mic.fill")
-                .font(.system(size: 44))
+                .font(Theme.ui(44))
                 .symbolEffect(.pulse, isActive: model.voice.active)
                 .foregroundStyle(model.voice.active ? Color.primary : Color.secondary)
                 .frame(height: 64)
@@ -645,7 +645,7 @@ private struct VoicePanel: View {
                     .keyboardShortcut(.cancelAction)
             }
             Text("说完会自动发送，随时可以打断。结束后对话文字会保存到当前会话。")
-                .font(.caption)
+                .font(Theme.ui(11))
                 .foregroundStyle(.secondary)
         }
         .padding(24)
@@ -670,7 +670,7 @@ private struct HoverCircle<Label: View>: View {
 
     var body: some View {
         label
-            .font(.system(size: size >= 40 ? 16 : 14))
+            .font(Theme.ui(size >= 40 ? 16 : 14))
             .foregroundStyle(Theme.fg2)
             .frame(width: size, height: size)
             .background(Circle().fill(hover || pressed ? Theme.hover : Color.clear))
