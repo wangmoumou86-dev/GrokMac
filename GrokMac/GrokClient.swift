@@ -76,6 +76,9 @@ enum GrokClient {
             case "response.completed":
                 let body = json["response"] as? [String: Any] ?? [:]
                 finished = body["output"] as? [[String: Any]]
+                let usage = body["usage"] as? [String: Any]
+                let headers = http.allHeaderFields
+                await MainActor.run { UsageStore.shared.record(model: (body["model"] as? String) ?? model, usage: usage, headers: headers) }
                 let links = citations(in: body)
                 if !links.isEmpty { await MainActor.run { onEvent(.citations(links)) } }
             case "response.failed", "error":

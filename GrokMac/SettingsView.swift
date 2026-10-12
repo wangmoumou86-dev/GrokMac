@@ -15,6 +15,8 @@ struct SettingsView: View {
                 .tabItem { Label(tr("数据", "Data"), systemImage: "externaldrive") }
             MCPSettings()
                 .tabItem { Label(tr("MCP 服务器", "MCP servers"), systemImage: "puzzlepiece.extension") }
+            UsageSettings()
+                .tabItem { Label(tr("用量", "Usage"), systemImage: "chart.bar") }
             accountForm
                 .tabItem { Label(tr("账号与工具", "Account & tools"), systemImage: "terminal") }
         }

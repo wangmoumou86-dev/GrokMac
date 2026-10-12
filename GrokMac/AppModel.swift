@@ -476,6 +476,7 @@ final class AppModel {
         }
         var acc = ""
         do {
+            UsageStore.shared.currentSession = sessionID
             try await GrokClient.runAgent(
                 key: key,
                 history: history,
