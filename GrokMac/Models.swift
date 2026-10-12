@@ -81,7 +81,7 @@ enum AgentMode: String, Codable, CaseIterable, Identifiable {
 enum AppPlace: String, Codable, CaseIterable, Identifiable {
     case chat, imagine, library, automations, hub
     var id: String { rawValue }
-    var title: String {
+    @MainActor var title: String {
         switch self {
         case .chat: tr("聊天", "Chat")
         case .imagine: "Imagine"
