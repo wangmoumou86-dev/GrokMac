@@ -695,12 +695,9 @@ private struct ApprovalPill: View {
                 Button {
                     model.setApproval(mode.tag)
                 } label: {
-                    Label {
-                        Text(mode.title)
-                        Text(mode.detail)
-                    } icon: {
-                        Image(systemName: mode.tag == current.tag ? "checkmark" : mode.icon)
-                    }
+                    Image(systemName: mode.tag == current.tag ? "checkmark" : mode.icon)
+                    Text(mode.title)
+                    Text(mode.detail)
                 }
             }
         } label: {
