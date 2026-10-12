@@ -648,7 +648,7 @@ final class AppModel {
         }
         let onSkills = skills.filter(\.on).map { "\($0.name): \($0.text)" }
         if !onSkills.isEmpty { lines.append(onSkills.joined(separator: "\n")) }
-        if !connected.isEmpty { lines.append("Connected: \(connected.joined(separator: ", ")). GitHub can be used with gh. Do not invent mail or files for other accounts.") }
+        if connected.contains("github") { lines.append("GitHub is connected: use the gh command through bash. No mail, calendar or drive accounts are connected; do not invent their contents.") }
         return lines.joined(separator: "\n")
     }
 

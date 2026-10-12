@@ -207,6 +207,8 @@ enum GrokClient {
         var system = systemPrompt(tier: tier, mode: mode, root: root, projectChosen: projectChosen, sandbox: sandbox, approval: approval)
         if !note.isEmpty { system += "\n" + note }
         if !brief.isEmpty { system += "\nProject notes:\n" + brief }
+        let (mcpLine, mcpTools) = await MainActor.run { (MCPManager.shared.promptLine(), MCPManager.shared.activeTools) }
+        system += "\n" + mcpLine
         var input: [[String: Any]] = [["role": "system", "content": system]]
         for message in history.suffix(24) {
             if message.role == .tool, let tool = message.tool {
@@ -231,6 +233,11 @@ enum GrokClient {
             // Image generation is never offered on an ordinary chat turn; only when the user explicitly asks.
             if name == "generate_image", !explicitlyAsksForImage(history.last(where: { $0.role == .user })?.content ?? "") { continue }
             tools.append(["type": "function", "name": name, "description": function["description"] ?? "", "parameters": function["parameters"] ?? [:]])
+        }
+        // MCP server tools: https://modelcontextprotocol.io/specification/2025-06-18/server/tools
+        for tool in mcpTools where mode == .code || tool.readOnly {
+            let description = "[MCP \(tool.server)] " + String(tool.description.prefix(900))
+            tools.append(["type": "function", "name": tool.fullName, "description": description, "parameters": tool.schema])
         }
 
         var model = tier.modelID
@@ -313,6 +320,9 @@ enum GrokClient {
         onTool: @escaping @MainActor (ToolTrace) -> Void,
         onGate: @escaping @MainActor (String, String, String) async -> String
     ) async -> String {
+        if call.name.hasPrefix("mcp__") {
+            return await executeMCP(call, mode: mode, approval: approval, onTool: onTool, onGate: onGate)
+        }
         if !allowed(mode, call.name) {
             let output = "当前是\(mode == .ask ? "提问" : "计划")模式，不能改文件或执行命令。"
             await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: output, status: "error"))
@@ -341,6 +351,50 @@ enum GrokClient {
         let (output, ok) = await LocalTools.run(name: call.name, arguments: call.arguments, root: root, key: key, access: access)
         await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: output, status: ok ? "done" : "error"))
         return output
+    }
+
+    /// MCP tools: 只读 always asks, 默认 asks until the user picks 始终允许 for that server, 完全访问 never asks.
+    /// Tools the server marks readOnlyHint run without asking.
+    private static func executeMCP(
+        _ call: ToolCall,
+        mode: AgentMode,
+        approval: String,
+        onTool: @escaping @MainActor (ToolTrace) -> Void,
+        onGate: @escaping @MainActor (String, String, String) async -> String
+    ) async -> String {
+        guard let tool = await MainActor.run(body: { MCPManager.shared.tool(named: call.name) }) else {
+            let output = "这个 MCP 工具现在不可用（服务器未连接）。"
+            await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: output, status: "error"))
+            return output
+        }
+        let shown = "\(tool.server) · \(tool.name) \(call.arguments)"
+        if mode != .code, !tool.readOnly {
+            let output = "当前是\(mode == .ask ? "提问" : "计划")模式，只能用只读的 MCP 工具。"
+            await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: output, status: "error"))
+            return output
+        }
+        let trusted = await MainActor.run { MCPManager.shared.alwaysAllowed(tool.server) }
+        let ask: Bool
+        switch approval {
+        case "never": ask = false
+        case "readOnly": ask = !tool.readOnly
+        default: ask = !tool.readOnly && !trusted
+        }
+        if ask {
+            await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: "", status: "approval"))
+            let answer = await onGate("要调用 MCP 工具 \(tool.server) · \(tool.name)。允许？", shown, approval == "readOnly" ? "approve" : "approve-mcp:" + tool.server)
+            if answer == "always" {
+                await MainActor.run { MCPManager.shared.setAlwaysAllow(tool.server, true) }
+            } else if answer != "yes" {
+                let output = "用户拒绝了这次操作。"
+                await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: output, status: "error"))
+                return output
+            }
+        }
+        await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: "", status: "running"))
+        let result = await MCPManager.shared.call(tool, arguments: call.arguments)
+        await onTool(ToolTrace(id: call.id, name: call.name, input: shown, output: result.text, status: result.ok ? "done" : "error", images: result.images.isEmpty ? nil : result.images))
+        return result.ok ? result.text : "工具返回错误：" + result.text
     }
 
     /// The command itself for shell tools, otherwise the raw JSON arguments.

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ToolCardView: View {
@@ -15,7 +16,8 @@ struct ToolCardView: View {
     }
 
     private var icon: String {
-        switch tool.name {
+        if tool.name.hasPrefix("mcp__") { return "puzzlepiece.extension" }
+        return switch tool.name {
         case "bash", "run_tests", "open_pr": "terminal"
         case "read_file", "glob", "grep", "codebase_search": "doc.text.magnifyingglass"
         case "write_file", "edit_file", "apply_patch", "undo": "pencil"
@@ -35,7 +37,7 @@ struct ToolCardView: View {
                         .foregroundStyle(.secondary)
                     Image(systemName: icon)
                         .font(Theme.ui(11))
-                    Text(tool.name == "bash" ? "$ " + tool.input : "\(tool.name)  \(tool.input)")
+                    Text(tool.name == "bash" ? "$ " + tool.input : tool.name.hasPrefix("mcp__") ? "MCP  " + tool.input : "\(tool.name)  \(tool.input)")
                         .font(Theme.mono(12))
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -64,6 +66,15 @@ struct ToolCardView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .frame(maxHeight: 260)
+                }
+                ForEach(tool.images ?? [], id: \.self) { path in
+                    if let image = NSImage(contentsOfFile: path) {
+                        Image(nsImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: 420, maxHeight: 320, alignment: .leading)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    }
                 }
             }
         }

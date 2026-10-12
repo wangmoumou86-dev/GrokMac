@@ -42,6 +42,7 @@ struct RootView: View {
             }
         }
         .task {
+            MCPManager.shared.startIfNeeded()
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30))
                 model.dueAutomation()

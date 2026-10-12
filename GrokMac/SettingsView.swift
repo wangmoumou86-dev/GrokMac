@@ -13,6 +13,8 @@ struct SettingsView: View {
                 .tabItem { Label(tr("个性化", "Personalize"), systemImage: "person.text.rectangle") }
             DataSettings()
                 .tabItem { Label(tr("数据", "Data"), systemImage: "externaldrive") }
+            MCPSettings()
+                .tabItem { Label(tr("MCP 服务器", "MCP servers"), systemImage: "puzzlepiece.extension") }
             accountForm
                 .tabItem { Label(tr("账号与工具", "Account & tools"), systemImage: "terminal") }
         }

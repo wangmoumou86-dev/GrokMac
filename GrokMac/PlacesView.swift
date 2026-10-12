@@ -142,7 +142,7 @@ private struct ConnectorsList: View {
             ForEach(GrokCatalog.connectors.filter { $0.group == "advertising" && matches($0, q) }) { item in
                 row(item)
             }
-            Text("GitHub 可以让 Grok 在对话里用 gh 搜仓库。其他账号点 Add 只是记在这台 Mac 上，没有官方令牌就读不到邮件和网盘。")
+            Text("GitHub 让 Grok 在对话里用本机的 gh 命令。其他账号还没有接入，标为即将支持；需要的话可以在 设置 → MCP 服务器 里添加对应的 MCP 服务器。")
                 .font(Theme.ui(11))
                 .foregroundStyle(.secondary)
                 .padding(.top, 8)
@@ -165,11 +165,17 @@ private struct ConnectorsList: View {
                 Text(item.blurb).font(Theme.ui(11)).foregroundStyle(.secondary)
             }
             Spacer(minLength: 12)
-            Button(model.connected.contains(item.id) ? "✓ Added" : "Add") {
-                model.toggleConnector(item.id)
+            if item.id == "github" {
+                Button(model.connected.contains(item.id) ? "✓ Added" : "Add") {
+                    model.toggleConnector(item.id)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            } else {
+                Text(tr("即将支持", "Coming soon"))
+                    .font(Theme.ui(11))
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
         }
         .padding(.vertical, 4)
     }

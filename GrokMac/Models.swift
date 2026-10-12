@@ -160,6 +160,8 @@ struct ToolTrace: Codable, Equatable, Hashable {
     var input: String
     var output: String
     var status: String
+    /// Local file paths of images an MCP tool returned, shown in the tool card.
+    var images: [String]? = nil
 }
 
 struct ChatMessage: Identifiable, Codable, Equatable {

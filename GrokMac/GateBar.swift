@@ -30,6 +30,9 @@ struct GateBar: View {
                 HStack(spacing: 8) {
                     Spacer()
                     GateButton(title: "拒绝", filled: false) { model.decide("no") }
+                    if model.gateKind.hasPrefix("approve-mcp:") {
+                        GateButton(title: "始终允许此服务器", filled: false) { model.decide("always") }
+                    }
                     GateButton(title: "允许", filled: true) { model.decide("yes") }
                         .keyboardShortcut(.defaultAction)
                 }
