@@ -24,6 +24,9 @@ final class AppModel {
     var projectLabel = ProjectStore.label()
     var autoRun = false
     var allowNetwork = true
+    var sandboxMode = "workspace-write"
+    var approvalPolicy = "on-request"
+    var useWorktree = false
     var gateTitle = ""
     var gateDetail = ""
     var gateKind = ""
@@ -56,6 +59,9 @@ final class AppModel {
             skills = extra.skills.isEmpty ? GrokCatalog.defaultSkills : extra.skills
             automations = extra.automations
             activeBotID = extra.activeBotID
+            sandboxMode = extra.sandboxMode ?? "workspace-write"
+            approvalPolicy = extra.approvalPolicy ?? "on-request"
+            useWorktree = extra.useWorktree ?? false
         }
         needsKey = KeychainStore.load().isEmpty
     }
@@ -236,12 +242,12 @@ final class AppModel {
         chatTask?.cancel()
         chatTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            if surface == .cli {
-                await self.runTools(sessionID: sessionID, messageID: assistantID, history: history, key: key, note: note)
-                return
-            }
             if imagine {
                 await self.runImagine(sessionID: sessionID, messageID: assistantID, prompt: text, key: key)
+                return
+            }
+            if surface == .cli || ProjectStore.url() != nil {
+                await self.runTools(sessionID: sessionID, messageID: assistantID, history: history, key: key, note: note)
                 return
             }
             var acc = ""
@@ -298,15 +304,24 @@ final class AppModel {
             return
         }
         defer { access.close() }
+        var root = access.root
+        if useWorktree {
+            guard let made = LocalTools.makeWorktree(root: access.root) else {
+                finish(sessionID: sessionID, messageID: messageID, content: "没能建 Git worktree。这个文件夹得是一个 Git 仓库。", error: true)
+                busy = false
+                return
+            }
+            root = made
+        }
         var acc = ""
         do {
             try await GrokClient.runAgent(
                 key: key,
                 history: history,
-                root: access.root,
+                root: root,
                 mode: mode,
-                autoRun: autoRun,
-                network: allowNetwork,
+                sandbox: sandboxMode,
+                approval: approvalPolicy,
                 note: note,
                 onTool: { trace in
                     self.upsertTool(sessionID: sessionID, before: messageID, trace: trace)
@@ -426,7 +441,7 @@ final class AppModel {
             let url = Self.storeURL()
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try data.write(to: url, options: .atomic)
-            let extra = WorkspaceExtra(place: place, hubTab: hubTab, connected: connected, bots: bots, skills: skills, automations: automations, activeBotID: activeBotID)
+            let extra = WorkspaceExtra(place: place, hubTab: hubTab, connected: connected, bots: bots, skills: skills, automations: automations, activeBotID: activeBotID, sandboxMode: sandboxMode, approvalPolicy: approvalPolicy, useWorktree: useWorktree)
             if let extraData = try? JSONEncoder().encode(extra) {
                 UserDefaults.standard.set(extraData, forKey: "grok.workspace")
             }
@@ -449,6 +464,21 @@ final class AppModel {
         if !onSkills.isEmpty { lines.append(onSkills.joined(separator: "\n")) }
         if !connected.isEmpty { lines.append("Connected: \(connected.joined(separator: ", ")). GitHub can be used with gh. Do not invent mail or files for other accounts.") }
         return lines.joined(separator: "\n")
+    }
+
+    func setSandbox(_ value: String) {
+        sandboxMode = value
+        scheduleSave()
+    }
+
+    func setApproval(_ value: String) {
+        approvalPolicy = value
+        scheduleSave()
+    }
+
+    func setWorktree(_ on: Bool) {
+        useWorktree = on
+        scheduleSave()
     }
 
     func toggleConnector(_ id: String) {
@@ -506,4 +536,7 @@ private struct WorkspaceExtra: Codable {
     var skills: [GrokSkill]
     var automations: [GrokAutomation]
     var activeBotID: UUID?
+    var sandboxMode: String?
+    var approvalPolicy: String?
+    var useWorktree: Bool?
 }

@@ -1,12 +1,16 @@
 import Foundation
 
 enum LocalTools {
-    static func run(name: String, arguments: String, root: URL, key: String, network: Bool = true) async -> (String, Bool) {
+    static func run(name: String, arguments: String, root: URL, key: String, access: String = "workspace") async -> (String, Bool) {
         let args = (try? JSONSerialization.jsonObject(with: Data(arguments.utf8))) as? [String: Any] ?? [:]
         let str = { (key: String) -> String in args[key] as? String ?? "" }
+        let writes = ["write_file", "edit_file", "apply_patch", "todo_write", "undo"]
+        if access == "read-only", writes.contains(name) {
+            return ("只读沙箱，这次没有批准写出。", false)
+        }
         switch name {
         case "bash":
-            return await bash(root: root, command: str("command"), network: network)
+            return await bash(root: root, command: str("command"), access: access)
         case "read_file":
             let offset = (args["offset"] as? NSNumber)?.intValue ?? 1
             let limit = (args["limit"] as? NSNumber)?.intValue ?? 200
@@ -34,11 +38,11 @@ enum LocalTools {
         case "undo":
             return undo(root: root)
         case "run_tests":
-            return await bash(root: root, command: testCommand(root: root, requested: str("command")), network: network)
+            return await bash(root: root, command: testCommand(root: root, requested: str("command")), access: access)
         case "open_pr":
             let title = str("title").replacingOccurrences(of: "\"", with: "")
             let body = str("body").replacingOccurrences(of: "\"", with: "")
-            return await bash(root: root, command: "git status --short && gh pr create --title \"\(title)\" --body \"\(body)\"", network: true)
+            return await bash(root: root, command: "git status --short && gh pr create --title \"\(title)\" --body \"\(body)\"", access: access)
         default:
             return ("没有这个工具：\(name)", false)
         }
@@ -139,19 +143,43 @@ enum LocalTools {
         }
     }
 
-    private static func bash(root: URL, command: String, network: Bool = true) async -> (String, Bool) {
+    static func makeWorktree(root: URL) -> URL? {
+        let id = String(UUID().uuidString.prefix(8))
+        let dest = root.appendingPathComponent(".grok/worktrees/\(id)", isDirectory: true)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["worktree", "add", "-b", "grok/\(id)", dest.path]
+        process.currentDirectoryURL = root
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return nil
+        }
+        return process.terminationStatus == 0 ? dest : nil
+    }
+
+    private static func bash(root: URL, command: String, access: String) async -> (String, Bool) {
         let limited = String(command.prefix(4_000))
         return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
-                if !network, FileManager.default.isExecutableFile(atPath: "/usr/bin/sandbox-exec") {
+                if access != "full", FileManager.default.isExecutableFile(atPath: "/usr/bin/sandbox-exec") {
+                    let network = access == "workspace-net" ? "(allow network*)" : "(deny network*)"
+                    let files = access == "read-only"
+                        ? "(allow file-read*) (deny file-write*)"
+                        : """
+                        (allow file-read* file-write* (subpath "\(root.path)"))
+                        (allow file-read* (subpath "/usr") (subpath "/bin") (subpath "/opt") (subpath "/Library") (subpath "/System") (subpath "/Applications"))
+                        """
                     let profile = """
                     (version 1)
                     (deny default)
                     (allow process*)
-                    (allow file-read* file-write* (subpath "\(root.path)"))
-                    (allow file-read* (subpath "/usr") (subpath "/bin") (subpath "/opt") (subpath "/Library") (subpath "/System") (subpath "/Applications"))
-                    (deny network*)
+                    \(files)
+                    \(network)
                     """
                     process.executableURL = URL(fileURLWithPath: "/usr/bin/sandbox-exec")
                     process.arguments = ["-p", profile, "/bin/bash", "-lc", limited]

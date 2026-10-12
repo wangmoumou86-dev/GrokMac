@@ -114,8 +114,8 @@ enum GrokClient {
         history: [ChatMessage],
         root: URL,
         mode: AgentMode,
-        autoRun: Bool,
-        network: Bool,
+        sandbox: String,
+        approval: String,
         note: String = "",
         onTool: @escaping @MainActor (ToolTrace) -> Void,
         onGate: @escaping @MainActor (String, String, String) async -> String,
@@ -128,9 +128,9 @@ enum GrokClient {
         var messages: [[String: Any]] = [[
             "role": "system",
             "content": """
-            You are Grok, a coding agent with Codex and Claude Code style tools: bash, read_file, write_file, edit_file, apply_patch, glob, grep, codebase_search, web_search, web_fetch, todo_write, generate_image, ask_user, undo, run_tests, open_pr.
-            Paths are relative to the selected project. Never claim a change unless a tool result says so.
+            You are Grok running as a local agent, the same loop as Codex. File tools and local commands stay inside the selected project. Do not claim a change unless a tool result says so.
             \(modeLine)
+            Sandbox: \(sandbox). Approval: \(approval). Workspace writes and local commands proceed. Network or leaving the project waits for approval.
             \(note)
             Use ask_user when you need a decision. Use run_tests after code changes. Use apply_patch for multi-line edits.
             \(brief.isEmpty ? "" : "Project notes:\n\(brief)")
@@ -192,18 +192,19 @@ enum GrokClient {
                     messages.append(["role": "tool", "tool_call_id": call.id, "content": output])
                     continue
                 }
-                if mode == .code, !autoRun, mutating.contains(call.name) {
+                if let reason = escalation(name: call.name, arguments: call.arguments, sandbox: sandbox, approval: approval) {
                     await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: "", status: "approval"))
-                    let answer = await onGate("允许 \(call.name)？", call.arguments, "approve")
+                    let answer = await onGate(reason, call.arguments, "approve")
                     if answer != "yes" {
-                        let output = "用户拒绝了这次操作。"
+                        let output = "用户拒绝了越界操作。"
                         await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: output, status: "error"))
                         messages.append(["role": "tool", "tool_call_id": call.id, "content": output])
                         continue
                     }
                 }
+                let access = accessLevel(name: call.name, arguments: call.arguments, sandbox: sandbox, approval: approval)
                 await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: "", status: "running"))
-                let (output, ok) = await LocalTools.run(name: call.name, arguments: call.arguments, root: root, key: trimmed, network: network)
+                let (output, ok) = await LocalTools.run(name: call.name, arguments: call.arguments, root: root, key: trimmed, access: access)
                 await onTool(ToolTrace(id: call.id, name: call.name, input: call.arguments, output: output, status: ok ? "done" : "error"))
                 messages.append(["role": "tool", "tool_call_id": call.id, "content": output])
             }
@@ -213,6 +214,39 @@ enum GrokClient {
 
     private static let readOnly: Set<String> = ["read_file", "glob", "grep", "codebase_search", "web_search", "web_fetch", "ask_user", "undo"]
     private static let mutating: Set<String> = ["bash", "write_file", "edit_file", "apply_patch", "run_tests", "open_pr"]
+    private static let networked: Set<String> = ["web_search", "web_fetch", "open_pr", "generate_image"]
+
+    private static func needsNetwork(_ command: String) -> Bool {
+        let text = command.lowercased()
+        let words = ["curl", "wget", "ssh", "scp", "rsync", "ping", "npm", "pnpm", "yarn", "pip", "pip3", "brew", "gh", "docker", "podman"]
+        if words.contains(where: { text.contains($0) }) { return true }
+        return text.contains("git push") || text.contains("git pull") || text.contains("git fetch") || text.contains("git clone")
+    }
+
+    private static func escalation(name: String, arguments: String, sandbox: String, approval: String) -> String? {
+        let command = (jsonObject(arguments)["command"] as? String) ?? ""
+        let writes = mutating.contains(name) || name == "todo_write" || name == "undo"
+        if sandbox == "read-only", writes {
+            return approval == "never" ? nil : "只读沙箱。允许这一次写出或执行？"
+        }
+        if networked.contains(name) || ((name == "bash" || name == "run_tests") && needsNetwork(command)) {
+            return approval == "never" ? nil : "需要联网。允许这一次？"
+        }
+        if sandbox == "full-access" && (name == "bash" || name == "run_tests") && approval != "never" {
+            return "完全访问。允许这条命令？"
+        }
+        return nil
+    }
+
+    private static func accessLevel(name: String, arguments: String, sandbox: String, approval: String) -> String {
+        if sandbox == "full-access" { return "full" }
+        let command = (jsonObject(arguments)["command"] as? String) ?? ""
+        let wantsNet = networked.contains(name) || ((name == "bash" || name == "run_tests") && needsNetwork(command))
+        if wantsNet, approval == "never" { return "workspace" }
+        if wantsNet { return "workspace-net" }
+        if sandbox == "read-only" { return approval == "never" ? "read-only" : "workspace" }
+        return "workspace"
+    }
 
     private static func allowed(_ mode: AgentMode, _ name: String) -> Bool {
         if mode == .ask { return readOnly.contains(name) }

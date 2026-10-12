@@ -8,16 +8,27 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("工具") {
-                Toggle("改动前先确认", isOn: Binding(
-                    get: { !model.autoRun },
-                    set: { model.autoRun = !$0 }
+            Section("沙箱") {
+                Picker("范围", selection: Binding(
+                    get: { model.sandboxMode },
+                    set: { model.setSandbox($0) }
+                )) {
+                    Text("只读").tag("read-only")
+                    Text("项目内可写").tag("workspace-write")
+                    Text("完全访问").tag("full-access")
+                }
+                Picker("批准", selection: Binding(
+                    get: { model.approvalPolicy },
+                    set: { model.setApproval($0) }
+                )) {
+                    Text("越界才问").tag("on-request")
+                    Text("不问").tag("never")
+                }
+                Toggle("用 Git worktree 隔离改动", isOn: Binding(
+                    get: { model.useWorktree },
+                    set: { model.setWorktree($0) }
                 ))
-                Toggle("命令可以联网", isOn: Binding(
-                    get: { model.allowNetwork },
-                    set: { model.allowNetwork = $0 }
-                ))
-                Text("提问和计划模式不会改文件。代码模式默认每次改动都要你点允许。撤销在终端里输入 /undo。")
+                Text("默认和 Codex 一样：只在你选的文件夹里写，命令没有网络。要联网或在只读模式里改文件，才会停下来问。完全访问等于拆掉沙箱。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button("撤销上一次改动") { model.undoLastChange() }
