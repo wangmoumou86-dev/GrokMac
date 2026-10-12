@@ -365,7 +365,7 @@ final class AppModel {
     func undoLastChange() {
         guard let access = ProjectAccess.open() else { return }
         Task { @MainActor in
-            let (output, _) = await LocalTools.run(name: "undo", arguments: "{}", root: access.root, key: "", network: false)
+            let (output, _) = await LocalTools.run(name: "undo", arguments: "{}", root: access.root, key: "", access: "workspace")
             access.close()
             self.meta(output)
         }
