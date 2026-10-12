@@ -156,18 +156,24 @@ private struct ConnectorsList: View {
     }
 
     private func row(_ item: GrokConnector) -> some View {
-        HStack {
-            Text(item.mark).frame(width: 36, height: 36).background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
-            VStack(alignment: .leading) {
+        HStack(spacing: 12) {
+            Image("conn-\(item.id)")
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 36, height: 36)
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
                 Text(item.name)
                 Text(item.blurb).font(.caption).foregroundStyle(.secondary)
             }
-            Spacer()
+            Spacer(minLength: 12)
             Button(model.connected.contains(item.id) ? "✓ Added" : "Add") {
                 model.toggleConnector(item.id)
             }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 4)
     }
 }
 
