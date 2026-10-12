@@ -94,13 +94,11 @@ enum LoginSession {
         guard let line = request.split(separator: "\r\n").first,
               let path = line.split(separator: " ").dropFirst().first,
               let components = URLComponents(string: "http://127.0.0.1\(path)") else {
-            finish(false)
             return
         }
         let code = components.queryItems?.first { $0.name == "code" }?.value ?? ""
         let state = components.queryItems?.first { $0.name == "state" }?.value ?? ""
         guard !code.isEmpty, state == expectedState else {
-            finish(false)
             return
         }
         Task { await exchange(code) }
@@ -108,7 +106,7 @@ enum LoginSession {
 
     /// Accepts a code pasted by the user from the consent page.
     /// Takes a bare code, a "code#state" pair, or a full callback URL.
-    static func submit(pasted raw: String) {
+    static func submit(pasted raw: String, done: @escaping (Bool) -> Void) {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         var code = text
@@ -118,6 +116,7 @@ enum LoginSession {
         } else if let hash = text.firstIndex(of: "#") {
             code = String(text[..<hash])
         }
+        self.done = done
         finished = false
         Task { await exchange(code) }
     }
@@ -162,7 +161,7 @@ enum LoginSession {
         listener?.cancel()
         listener = nil
         let callback = done
-        if ok { done = nil }
+        done = nil
         callback?(ok)
     }
 

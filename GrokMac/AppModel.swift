@@ -21,6 +21,8 @@ final class AppModel {
     var busy = false
     var showPalette = false
     var showLogin = true
+    var loginWaiting = false
+    var loginFailed = false
     var projectLabel = ProjectStore.label()
     var autoRun = false
     var allowNetwork = true
@@ -64,6 +66,37 @@ final class AppModel {
             useWorktree = extra.useWorktree ?? false
         }
         showLogin = true
+    }
+
+    /// Every 登录 entry point goes through here so the paste field always shows.
+    func beginLogin() {
+        showLogin = true
+        loginWaiting = true
+        loginFailed = false
+        LoginSession.start { [weak self] ok in
+            self?.loginFinished(ok)
+        }
+    }
+
+    func submitLoginCode(_ code: String) {
+        loginFailed = false
+        LoginSession.submit(pasted: code) { [weak self] ok in
+            self?.loginFinished(ok)
+        }
+    }
+
+    func skipLogin() {
+        showLogin = false
+        loginWaiting = false
+        loginFailed = false
+    }
+
+    private func loginFinished(_ ok: Bool) {
+        if ok {
+            skipLogin()
+        } else {
+            loginFailed = true
+        }
     }
 
     var active: ChatSession {

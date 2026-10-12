@@ -114,7 +114,7 @@ private struct PaletteSheet: View {
         case "计划模式": model.mode = .plan
         case "提问模式": model.mode = .ask
         case "登录":
-            model.showLogin = true
+            model.beginLogin()
         default: break
         }
         dismiss()
@@ -123,9 +123,7 @@ private struct PaletteSheet: View {
 
 private struct LoginGate: View {
     @Environment(AppModel.self) private var model
-    @State private var waiting = false
     @State private var pasted = ""
-    @State private var failed = false
 
     var body: some View {
         ZStack {
@@ -138,16 +136,12 @@ private struct LoginGate: View {
                     .font(.system(size: 40, weight: .medium))
                 Text("打开官方授权页，用 X、Google 或 Apple")
                     .foregroundStyle(.secondary)
-                Button("登录") {
-                    failed = false
-                    waiting = true
-                    LoginSession.start { ok in
-                        if ok { model.showLogin = false } else { failed = true }
-                    }
+                Button(model.loginWaiting ? "重新打开授权页" : "登录") {
+                    model.beginLogin()
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                if waiting {
+                if model.loginWaiting {
                     Text("授权后如果页面给了一串码，粘贴到这里")
                         .font(.callout)
                         .foregroundStyle(.secondary)
@@ -159,14 +153,14 @@ private struct LoginGate: View {
                         Button("提交", action: submitCode)
                             .disabled(pasted.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
-                    if failed {
-                        Text("登录没有成功，请重新点「登录」再试一次")
+                    if model.loginFailed {
+                        Text("登录没有成功，检查授权码后再提交，或重新打开授权页")
                             .font(.callout)
                             .foregroundStyle(.red)
                     }
                 }
                 Button("暂时跳过") {
-                    model.showLogin = false
+                    model.skipLogin()
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
@@ -176,8 +170,7 @@ private struct LoginGate: View {
     }
 
     private func submitCode() {
-        failed = false
-        LoginSession.submit(pasted: pasted)
+        model.submitLoginCode(pasted)
         pasted = ""
     }
 }
