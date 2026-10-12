@@ -429,7 +429,9 @@ enum GrokClient {
     }
 
     private static func isDestructive(_ command: String) -> Bool {
-        let text = " " + command.lowercased().replacingOccurrences(of: "\n", with: " ; ") + " "
+        // Redirecting to /dev/null (2>/dev/null, &>/dev/null) discards output; it never overwrites a file.
+        let text = (" " + command.lowercased().replacingOccurrences(of: "\n", with: " ; ") + " ")
+            .replacingOccurrences(of: #"[0-9&]?>>?\s*/dev/null"#, with: " ", options: .regularExpression)
         let patterns = [
             #"(^|[\s;&|(])(sudo\s+)?(rm|rmdir|unlink|shred|srm|mv|dd|mkfs\S*|diskutil|chmod|chown|chflags|truncate|killall|pkill|kill|launchctl|defaults\s+delete|osascript)\s"#,
             #"git\s+(reset\s+--hard|clean\s+-\S*f|checkout\s+--\s|restore\s|push\s+.*(-f|--force)|branch\s+-D|stash\s+(drop|clear))"#,
