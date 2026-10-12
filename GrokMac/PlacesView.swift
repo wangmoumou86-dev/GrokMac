@@ -109,6 +109,7 @@ private struct HubPage: View {
                 Text(tr("机器人", "Bots")).tag("bots")
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .frame(maxWidth: 360)
             TextField("Search...", text: $query).textFieldStyle(.roundedBorder)
             ScrollView {
