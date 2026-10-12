@@ -494,6 +494,11 @@ private struct ReplyActions: View {
     }
 }
 
+private func dataImage(_ url: String) -> NSImage? {
+    guard let comma = url.firstIndex(of: ","), let data = Data(base64Encoded: String(url[url.index(after: comma)...])) else { return nil }
+    return NSImage(data: data)
+}
+
 private struct AttachmentChip: View {
     var item: ComposerAttachment
     var remove: () -> Void
