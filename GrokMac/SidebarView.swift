@@ -11,7 +11,7 @@ struct SidebarView: View {
                 Button { model.newSession() } label: {
                     Image(systemName: "square.and.pencil")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ComposerIconButtonStyle(size: 32))
                 .help(tr("新对话", "New chat"))
                 Spacer()
             }
@@ -29,7 +29,14 @@ struct SidebarView: View {
                         Button {
                             model.botsOpen.toggle()
                         } label: {
-                            Label("Bots", systemImage: model.botsOpen ? "chevron.down" : "chevron.right")
+                            HStack(spacing: 4) {
+                                Text("Bots")
+                                Image(systemName: model.botsOpen ? "chevron.down" : "chevron.right")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(Theme.fg3)
+                            }
+                            .font(.system(size: 15))
+                            .foregroundStyle(Theme.sidebarFg)
                         }
                         .buttonStyle(.plain)
                         Spacer()
@@ -50,49 +57,54 @@ struct SidebarView: View {
                                 model.activeBotID = bot.id
                                 model.place = .chat
                             } label: {
-                                Text(bot.name).lineLimit(1)
+                                SidebarRow(title: bot.name, selected: model.activeBotID == bot.id && model.place == .chat)
                             }
                             .buttonStyle(.plain)
                         }
                     }
                 }
                 ForEach(groups) { group in
-                    Section(group.title) {
+                    Section {
                         ForEach(group.sessions) { session in
                             Button {
                                 model.select(session.id)
                             } label: {
-                                Text(session.title)
-                                    .lineLimit(1)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.vertical, 4)
-                                    .padding(.horizontal, 6)
-                                    .background(
-                                        session.id == model.activeID ? Theme.surface2 : Color.clear,
-                                        in: RoundedRectangle(cornerRadius: 6)
-                                    )
+                                SidebarRow(title: session.title, selected: session.id == model.activeID && model.place == .chat)
                             }
                             .buttonStyle(.plain)
                             .contextMenu {
                                 Button(tr("删除", "Delete"), role: .destructive) { model.remove(session.id) }
                             }
                         }
+                    } header: {
+                        Text(group.title)
+                            .font(.system(size: 15))
+                            .foregroundStyle(Theme.sidebarFg)
+                            .textCase(nil)
                     }
                 }
             }
+            .listStyle(.sidebar)
+            .environment(\.defaultMinListRowHeight, 36)
             .searchable(text: $query, placement: .sidebar, prompt: tr("搜索", "Search"))
-            Divider()
-            Group {
+            VStack(spacing: 2) {
+                Button {
+                    model.place = .hub
+                    model.hubTab = "connectors"
+                } label: {
+                    SidebarRow(title: "Connectors", symbol: "link")
+                }
+                Button {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                } label: {
+                    SidebarRow(title: tr("设置", "Settings"), symbol: "gearshape")
+                }
                 if model.signedIn {
                     Menu {
                         Button(tr("重新登录", "Sign in again")) { model.beginLogin() }
                         Button(tr("退出登录", "Sign out"), role: .destructive) { model.signOut() }
                     } label: {
-                        Label(tr("已登录 Grok", "Signed in"), systemImage: "person.crop.circle.badge.checkmark")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 8)
-                            .background(Theme.surface2, in: RoundedRectangle(cornerRadius: 8))
+                        AccountRow(title: tr("已登录 Grok", "Signed in"), subtitle: "xAI")
                     }
                     .menuStyle(.button)
                     .menuIndicator(.hidden)
@@ -101,37 +113,16 @@ struct SidebarView: View {
                     Button {
                         model.beginLogin()
                     } label: {
-                        Label(tr("登录", "Sign in"), systemImage: "person.crop.circle")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 8)
-                            .background(Theme.surface2, in: RoundedRectangle(cornerRadius: 8))
+                        AccountRow(title: tr("登录", "Sign in"), subtitle: "accounts.x.ai")
                     }
                     .help("打开 accounts.x.ai 的官方登录")
                 }
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, 12)
-            .padding(.top, 10)
-            Button {
-                model.place = .hub
-                model.hubTab = "connectors"
-            } label: {
-                Label("Connectors", systemImage: "link")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 12)
-            .padding(.top, 8)
-            Button {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-            } label: {
-                Label(tr("设置", "Settings"), systemImage: "gearshape")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .buttonStyle(.plain)
-            .padding(12)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
         }
+        .background(Theme.sidebar)
         .navigationTitle("Grok")
     }
 
@@ -139,11 +130,7 @@ struct SidebarView: View {
         Button {
             model.place = place
         } label: {
-            Label(place.title, systemImage: symbol)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 4)
-                .padding(.horizontal, 6)
-                .background(model.place == place ? Theme.surface2 : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+            SidebarRow(title: place.title, symbol: symbol, selected: model.place == place)
         }
         .buttonStyle(.plain)
     }
@@ -171,4 +158,64 @@ private func dayLabel(_ date: Date) -> String {
     if Calendar.current.isDateInToday(date) { return "今天" }
     if Calendar.current.isDateInYesterday(date) { return "昨天" }
     return "更早"
+}
+
+/// 36pt sidebar row with 12pt radius, 14pt text, hover and selected fills (grok.com).
+private struct SidebarRow: View {
+    var title: String
+    var symbol: String? = nil
+    var selected = false
+    @State private var hover = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let symbol {
+                Image(systemName: symbol)
+                    .font(.system(size: 14))
+                    .frame(width: 18)
+                    .foregroundStyle(Theme.fg2)
+            }
+            Text(title)
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.fg1)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, symbol == nil ? 9 : 6)
+        .padding(.trailing, 8)
+        .frame(height: 36)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            selected ? Theme.surface2 : (hover ? Theme.hover : Color.clear),
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .onHover { hover = $0 }
+    }
+}
+
+private struct AccountRow: View {
+    var title: String
+    var subtitle: String
+    @State private var hover = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "person.crop.circle.fill")
+                .font(.system(size: 26))
+                .foregroundStyle(Theme.fg3)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(title).font(.system(size: 14, weight: .medium)).foregroundStyle(Theme.fg1)
+                Text(subtitle).font(.system(size: 12)).foregroundStyle(Theme.fg3)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, 6)
+        .padding(.trailing, 8)
+        .frame(height: 44)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(hover ? Theme.hover : Color.clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .onHover { hover = $0 }
+    }
 }

@@ -17,14 +17,31 @@ struct ChatPane: View {
     var body: some View {
         Group {
             if visible.isEmpty {
-                VStack(spacing: 20) {
-                    Text(model.place == .imagine ? "Imagine" : "Grok")
-                        .font(.system(size: 40, weight: .medium))
-                    Text(model.place == .imagine ? (model.imagineVideo ? "描述你要的视频" : "描述你要的图片") : "可以直接让 Grok 在这台 Mac 上运行命令、读写工程文件")
-                        .foregroundStyle(.secondary)
+                VStack(spacing: 24) {
+                    Text(model.place == .imagine ? tr("想象点什么？", "What should we imagine?") : tr("今天有什么可以帮你？", "How can I help you today?"))
+                        .font(.system(size: 24, weight: .semibold))
+                        .tracking(-0.48)
+                        .foregroundStyle(Theme.fg1)
                     composer
                         .frame(maxWidth: Theme.composerWidth)
+                    if model.place != .imagine {
+                        HStack(spacing: 8) {
+                            ForEach(homeSuggestions, id: \.self) { item in
+                                Button { draft = item } label: {
+                                    Text(item)
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(Theme.fg2)
+                                        .padding(.horizontal, 12)
+                                        .frame(height: 32)
+                                        .background(Capsule().fill(Theme.surface1))
+                                        .overlay(Capsule().stroke(Theme.border1, lineWidth: 1))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
                 }
+                .padding(.bottom, 80)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(24)
             } else {
@@ -240,6 +257,10 @@ struct ChatPane: View {
         if let item = ComposerAttachment.load(url) {
             attachments.append(item)
         }
+    }
+
+    private var homeSuggestions: [String] {
+        [tr("运行一个命令", "Run a command"), tr("读写工程文件", "Edit project files"), tr("联网研究", "Research the web"), tr("解释这段代码", "Explain this code")]
     }
 
     private var canSend: Bool {
