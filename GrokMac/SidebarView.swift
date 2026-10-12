@@ -7,19 +7,16 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Button { model.newSession() } label: {
-                    Image(systemName: "square.and.pencil")
-                }
-                .buttonStyle(ComposerIconButtonStyle(size: 32))
-                .help(tr("新对话", "New chat"))
-                Spacer()
+            Button { model.newSession() } label: {
+                SidebarRow(title: tr("新建对话", "New chat"), symbol: "square.and.pencil")
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 10)
+            .buttonStyle(.plain)
+            .help(tr("新对话 (⌘N)", "New chat (⌘N)"))
+            .padding(.horizontal, 8)
+            .padding(.top, 6)
             List {
                 Section {
-                    placeButton(.chat, "square.and.pencil")
+                    placeButton(.chat, "bubble.left")
                     placeButton(.imagine, "photo")
                     placeButton(.library, "rectangle.stack")
                     placeButton(.automations, "bolt.badge.clock")
@@ -30,7 +27,7 @@ struct SidebarView: View {
                             model.botsOpen.toggle()
                         } label: {
                             HStack(spacing: 4) {
-                                Text("Bots")
+                                Text(tr("机器人", "Bots"))
                                 Image(systemName: model.botsOpen ? "chevron.down" : "chevron.right")
                                     .font(Theme.ui(10, .semibold))
                                     .foregroundStyle(Theme.fg3)
@@ -92,7 +89,7 @@ struct SidebarView: View {
                     model.place = .hub
                     model.hubTab = "connectors"
                 } label: {
-                    SidebarRow(title: "Connectors", symbol: "link")
+                    SidebarRow(title: tr("连接器", "Connectors"), symbol: "link")
                 }
                 Button {
                     NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)

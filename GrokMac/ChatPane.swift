@@ -56,6 +56,16 @@ struct ChatPane: View {
                         .padding(.bottom, 16)
                         .frame(maxWidth: Theme.composerWidth + 48)
                         .frame(maxWidth: .infinity)
+                        .background(alignment: .bottom) {
+                            // Opaque strip under the composer with a short fade, so scrolled replies don't show through.
+                            VStack(spacing: 0) {
+                                LinearGradient(colors: [Theme.base.opacity(0), Theme.base], startPoint: .top, endPoint: .bottom)
+                                    .frame(height: 24)
+                                Theme.base
+                            }
+                            .padding(.top, -24)
+                            .allowsHitTesting(false)
+                        }
                 }
             }
         }

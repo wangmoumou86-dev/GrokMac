@@ -83,11 +83,11 @@ enum AppPlace: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .chat: "Chat"
+        case .chat: tr("聊天", "Chat")
         case .imagine: "Imagine"
-        case .library: "Library"
-        case .automations: "Automations"
-        case .hub: "Connectors"
+        case .library: tr("资料库", "Library")
+        case .automations: tr("自动化", "Automations")
+        case .hub: tr("连接器", "Connectors")
         }
     }
 }

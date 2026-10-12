@@ -104,9 +104,9 @@ private struct HubPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Picker("页", selection: Bindable(model).hubTab) {
-                Text("Connectors").tag("connectors")
+                Text(tr("连接器", "Connectors")).tag("connectors")
                 Text("Skills").tag("skills")
-                Text("Bots").tag("bots")
+                Text(tr("机器人", "Bots")).tag("bots")
             }
             .pickerStyle(.segmented)
             .frame(maxWidth: 360)
