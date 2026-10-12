@@ -386,7 +386,8 @@ enum GrokClient {
         }
         let base = root.standardizedFileURL.path
         for path in paths {
-            guard let url = try? LocalTools.resolve(root, path) else { continue }
+            // A path the tools cannot resolve (outside the home folder) is still out of scope: ask, then the tool reports why it failed.
+            guard let url = try? LocalTools.resolve(root, path) else { return path }
             if url.path != base, !url.path.hasPrefix(base + "/") { return url.path }
         }
         return nil
