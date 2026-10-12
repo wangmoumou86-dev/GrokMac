@@ -194,6 +194,10 @@ struct ChatPane: View {
                 .onHover { modelHover = $0 }
                 .help(tr("选择模型", "Choose model"))
 
+                if model.place != .imagine {
+                    ApprovalPill()
+                }
+
                 if model.place == .imagine {
                     Picker("", selection: Binding(get: { model.imagineVideo }, set: { model.imagineVideo = $0 })) {
                         Text("图片").tag(false)
@@ -674,5 +678,50 @@ private struct HoverCircle<Label: View>: View {
             .background(Circle().fill(hover || pressed ? Theme.hover : Color.clear))
             .contentShape(Circle())
             .onHover { hover = $0 }
+    }
+}
+
+
+/// Compact approval-mode menu in the composer; reads and writes the same policy as Settings.
+private struct ApprovalPill: View {
+    @Environment(AppModel.self) private var model
+    @State private var hover = false
+
+    private static let options: [(tag: String, title: String, short: String, icon: String)] = [
+        ("on-request", "越界才问", "需批准", "hand.raised"),
+        ("never", "不问", "不问", "exclamationmark.triangle"),
+    ]
+
+    var body: some View {
+        let current = Self.options.first { $0.tag == model.approvalPolicy } ?? Self.options[0]
+        let risky = model.approvalPolicy == "never"
+        Menu {
+            ForEach(Self.options, id: \.tag) { option in
+                Button {
+                    model.setApproval(option.tag)
+                } label: {
+                    if option.tag == model.approvalPolicy {
+                        Label(option.title, systemImage: "checkmark")
+                    } else {
+                        Text(option.title)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: current.icon)
+                Text(current.short)
+            }
+            .font(Theme.ui(13, .medium))
+            .foregroundStyle(risky ? Color.orange : Theme.fg2)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .padding(.horizontal, 12)
+        .frame(height: 32)
+        .background(Capsule().fill(risky ? Color.orange.opacity(0.12) : (hover ? Theme.hover : Color.clear)))
+        .onHover { hover = $0 }
+        .help(risky ? "批准：不问——命令和改动不会先征求你同意" : "批准：越界或敏感操作前先问你")
     }
 }
