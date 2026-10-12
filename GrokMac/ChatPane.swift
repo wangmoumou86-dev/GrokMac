@@ -5,6 +5,8 @@ struct ChatPane: View {
     @Environment(AppModel.self) private var model
     @State private var draft = ""
     @State private var importing = false
+    @State private var attachments: [ComposerAttachment] = []
+    @State private var dropping = false
 
     private var visible: [ChatMessage] {
         model.active.messages.filter { $0.role != .meta }
@@ -82,6 +84,20 @@ struct ChatPane: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if !attachments.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(attachments) { item in
+                            AttachmentChip(item: item) { attachments.removeAll { $0.id == item.id } }
+                        }
+                    }
+                }
+                if attachments.contains(where: { $0.kind == .pdf }) {
+                    Text("PDF 只发送提取出的文字（最多 \(ComposerAttachment.maxPDFChars / 1000)k 字符），扫描件里的图片不会被读取。")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
             TextField("询问任何问题", text: $draft, axis: .vertical)
                 .textFieldStyle(.plain)
                 .lineLimit(1...6)
@@ -94,6 +110,16 @@ struct ChatPane: View {
                 }
                 .menuStyle(.borderlessButton)
                 .frame(width: 28)
+
+                if model.place != .imagine {
+                    Button {
+                        pickAttachments()
+                    } label: {
+                        Image(systemName: "paperclip")
+                    }
+                    .buttonStyle(.plain)
+                    .help("添加图片或 PDF（也可以直接拖进来）")
+                }
 
                 Menu {
                     ForEach(ReplyTier.allCases) { tier in
@@ -137,18 +163,47 @@ struct ChatPane: View {
         }
         .padding(12)
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.12)))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(dropping ? Color.accentColor : Color.white.opacity(0.12)))
+        .onDrop(of: [.fileURL], isTargeted: $dropping) { providers in
+            guard model.place != .imagine else { return false }
+            for provider in providers {
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                    guard let url else { return }
+                    Task { @MainActor in addAttachment(url) }
+                }
+            }
+            return true
+        }
+    }
+
+    private func pickAttachments() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.image, .pdf]
+        panel.prompt = "添加"
+        guard panel.runModal() == .OK else { return }
+        panel.urls.forEach(addAttachment)
+    }
+
+    private func addAttachment(_ url: URL) {
+        guard attachments.count < 8 else { return }
+        if let item = ComposerAttachment.load(url) {
+            attachments.append(item)
+        }
     }
 
     private var canSend: Bool {
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.busy
+        (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty) && !model.busy
     }
 
     private func submit() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        guard !text.isEmpty || !attachments.isEmpty, !model.busy else { return }
+        let files = attachments
         draft = ""
-        model.send(text, surface: .web)
+        attachments = []
+        model.send(text, surface: .web, attachments: files)
     }
 }
 
@@ -166,6 +221,24 @@ private struct MessageRow: View {
                         Text("来自终端")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                    if let files = message.files, !files.isEmpty {
+                        HStack(spacing: 6) {
+                            ForEach(message.allImages.prefix(4), id: \.self) { url in
+                                if let image = dataImage(url) {
+                                    Image(nsImage: image)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 64, height: 64)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                }
+                            }
+                        }
+                        ForEach(files.filter { $0.lowercased().hasSuffix(".pdf") }, id: \.self) { name in
+                            Label(name, systemImage: "doc.richtext")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     Text(message.content)
                         .textSelection(.enabled)
@@ -267,5 +340,47 @@ private struct ThinkingSection: View {
         }
         .padding(10)
         .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private func dataImage(_ url: String) -> NSImage? {
+    guard let comma = url.firstIndex(of: ","), let data = Data(base64Encoded: String(url[url.index(after: comma)...])) else { return nil }
+    return NSImage(data: data)
+}
+
+private struct AttachmentChip: View {
+    var item: ComposerAttachment
+    var remove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if item.kind == .image, let url = item.dataURL, let image = dataImage(url) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 24, height: 24)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+            } else {
+                Image(systemName: "doc.richtext")
+            }
+            Text(item.name)
+                .font(.caption)
+                .lineLimit(1)
+                .frame(maxWidth: 140)
+            if item.kind == .pdf {
+                Text("文字 \((item.text ?? "").count) 字")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Button(action: remove) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("移除")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Capsule().fill(Color.white.opacity(0.08)))
     }
 }

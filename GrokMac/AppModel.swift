@@ -176,9 +176,14 @@ final class AppModel {
         if gateWait != nil { decide("no") }
     }
 
-    func send(_ raw: String, surface: ChatSurface) {
-        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    func send(_ raw: String, surface: ChatSurface, attachments: [ComposerAttachment] = []) {
+        var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty, !attachments.isEmpty { text = attachments.contains { $0.kind == .image } ? "描述这张图片。" : "总结这份文档。" }
         guard !text.isEmpty, !busy else { return }
+        if !attachments.isEmpty {
+            deliver(text, surface: surface, attachments: attachments)
+            return
+        }
         if surface == .cli, text.hasPrefix("/") {
             if case .send(let rest) = interpret(text) {
                 deliver(rest, surface: surface)
@@ -280,9 +285,18 @@ final class AppModel {
         }
     }
 
-    private func deliver(_ text: String, surface: ChatSurface) {
+    private func deliver(_ text: String, surface: ChatSurface, attachments: [ComposerAttachment] = []) {
         let sessionID = activeID
-        let user = ChatMessage(role: .user, content: text, surface: surface)
+        var user = ChatMessage(role: .user, content: text, surface: surface)
+        if !attachments.isEmpty {
+            let images = attachments.compactMap(\.dataURL)
+            let pdfs = attachments.filter { $0.kind == .pdf }
+            user.images = images.isEmpty ? nil : images
+            user.files = attachments.map(\.name)
+            if !pdfs.isEmpty {
+                user.context = pdfs.map { "[附件 PDF：\($0.name)，以下是提取的文字]\n\($0.text ?? "")" }.joined(separator: "\n\n")
+            }
+        }
         let assistantID = UUID()
         let assistant = ChatMessage(id: assistantID, role: .assistant, content: "", surface: surface, pending: true)
         let history = active.messages + [user]

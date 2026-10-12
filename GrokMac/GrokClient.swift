@@ -45,7 +45,15 @@ enum GrokClient {
         let prior: [[String: Any]] = history
             .filter { $0.role == .user || $0.role == .assistant }
             .suffix(16)
-            .map { ["role": $0.role.rawValue, "content": String($0.content.prefix(6000))] }
+            .map { message in
+                let text = String(message.promptText.prefix(message.context == nil ? 6000 : 6000 + ComposerAttachment.maxPDFChars))
+                let images = message.role == .user ? message.allImages : []
+                if images.isEmpty { return ["role": message.role.rawValue, "content": text] }
+                // input_image parts: https://docs.x.ai/developers/model-capabilities/images/understanding
+                let parts: [[String: Any]] = [["type": "input_text", "text": text]]
+                    + images.map { ["type": "input_image", "image_url": $0, "detail": "high"] }
+                return ["role": "user", "content": parts]
+            }
         var payload: [String: Any] = [
             "model": tier.modelID,
             "stream": true,
@@ -183,16 +191,12 @@ enum GrokClient {
         for message in history.suffix(24) {
             if message.role == .tool, let tool = message.tool {
                 messages.append(["role": "assistant", "content": String("[\(tool.name)] \(tool.input)\n\(tool.output)".prefix(4000))])
-            } else if message.role == .user, let image = message.image, image.hasPrefix("data:image/") {
-                messages.append([
-                    "role": "user",
-                    "content": [
-                        ["type": "text", "text": String(message.content.prefix(6000))],
-                        ["type": "image_url", "image_url": ["url": image]],
-                    ],
-                ])
+            } else if message.role == .user, !message.allImages.isEmpty {
+                let parts: [[String: Any]] = [["type": "text", "text": String(message.promptText.prefix(6000 + ComposerAttachment.maxPDFChars))]]
+                    + message.allImages.map { ["type": "image_url", "image_url": ["url": $0]] }
+                messages.append(["role": "user", "content": parts])
             } else if (message.role == .user || message.role == .assistant), !message.content.isEmpty {
-                messages.append(["role": message.role.rawValue, "content": String(message.content.prefix(6000))])
+                messages.append(["role": message.role.rawValue, "content": String(message.promptText.prefix(message.context == nil ? 6000 : 6000 + ComposerAttachment.maxPDFChars))])
             }
         }
 
