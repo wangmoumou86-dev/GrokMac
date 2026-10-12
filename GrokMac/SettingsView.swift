@@ -50,8 +50,9 @@ struct SettingsView: View {
                     get: { model.approvalPolicy },
                     set: { model.setApproval($0) }
                 )) {
-                    Text("越界才问").tag("on-request")
-                    Text("不问").tag("never")
+                    ForEach(ApprovalMode.all, id: \.tag) { mode in
+                        Text(mode.title).tag(mode.tag)
+                    }
                 }
                 Toggle("用 Git worktree 隔离改动", isOn: Binding(
                     get: { model.useWorktree },

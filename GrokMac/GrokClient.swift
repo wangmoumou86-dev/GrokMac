@@ -112,6 +112,17 @@ enum GrokClient {
         text.replacingOccurrences(of: #"\s?\[\[\d+\]\]\([^)\s]+\)"#, with: "", options: .regularExpression)
     }
 
+    private static func approvalLine(_ approval: String) -> String {
+        switch approval {
+        case "readOnly":
+            return "Approval mode 只读 (read-only): read_file, glob, grep and plain read-only shell commands (ls, cat, grep, git status/log/diff and the like) run without asking. Every file write or edit and every other shell command waits for the user's approval first, and so do reads of sensitive paths. Prefer answering from reads; propose changes instead of making them unless the user asks."
+        case "never":
+            return "Approval mode 完全访问 (full access): reads, writes, commands, files outside the project folder and network access all run without asking the user. Be careful: double-check destructive commands before running them."
+        default:
+            return "Approval mode 默认 (default): inside the working folder you read, write and run commands freely. Edits outside the working folder, network access, destructive commands and reads of sensitive paths wait for the user's approval."
+        }
+    }
+
     private static func systemPrompt(tier: ReplyTier, mode: AgentMode, root: URL, projectChosen: Bool, sandbox: String, approval: String) -> String {
         let modeLine: String
         switch mode {
@@ -139,6 +150,7 @@ enum GrokClient {
             "Use the tools whenever the user asks about their Mac, files, code, or anything a command can answer, instead of guessing.",
             place,
             "Commands run with /bin/bash as the user. You can read anywhere in their home folder and write there too; destructive commands and edits outside the working folder wait for the user's approval. Sandbox setting: \(sandbox). Approval: \(approval). Risky or networked commands wait for the user's approval.",
+            approvalLine(approval),
             "Never claim a command ran or a file changed unless a tool result says so. Keep tool output summaries short; the user already sees each command and its output in the chat.",
             "Use ask_user when you need a decision.",
             "Do not run the same or an equivalent command twice (for example ls -la, ls -lah and ls -1A of one folder). Plan one command that gets what you need, and answer as soon as you have enough; most questions need one to three tool calls.",
@@ -439,6 +451,9 @@ enum GrokClient {
         if sandbox == "read-only", writes {
             return approval == "never" ? nil : "只读沙箱。允许这一次写出或执行？"
         }
+        if approval == "readOnly", writes, !((name == "bash") && isSafeReadOnlyCommand(command)) {
+            return name == "bash" ? "只读模式。允许运行这条命令？" : "只读模式。允许这次修改？"
+        }
         if approval != "never", (name == "bash" || name == "run_tests" || name == "open_pr"), isDestructive(command) {
             return "这条命令可能删除或覆盖文件。允许执行？"
         }
@@ -455,6 +470,29 @@ enum GrokClient {
             return "完全访问。允许这条命令？"
         }
         return nil
+    }
+
+    /// Commands that only read: every segment of a pipeline or && / ; chain starts with a known
+    /// read-only program, and there is no redirection or command substitution.
+    static func isSafeReadOnlyCommand(_ command: String) -> Bool {
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return false }
+        for bad in [">", "`", "$(", "<(", "\n"] where trimmed.contains(bad) { return false }
+        let safe: Set<String> = ["ls", "cat", "head", "tail", "wc", "pwd", "echo", "grep", "rg", "find", "file", "stat", "du", "df", "which", "whoami", "date", "uname", "tree", "less", "sort", "uniq", "cut", "diff", "basename", "dirname", "realpath", "env", "printenv", "sw_vers", "mdls", "md5", "shasum"]
+        let gitSafe: Set<String> = ["status", "log", "diff", "show", "branch", "remote", "rev-parse", "ls-files", "blame", "tag"]
+        let segments = trimmed.components(separatedBy: CharacterSet(charactersIn: "|;&")).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        for segment in segments {
+            let words = segment.split(separator: " ").map(String.init)
+            guard let first = words.first else { continue }
+            if first == "git" {
+                guard words.count > 1, gitSafe.contains(words[1]) else { return false }
+            } else if first == "find" {
+                if words.contains(where: { ["-delete", "-exec", "-execdir", "-ok"].contains($0) }) { return false }
+            } else if !safe.contains(first) {
+                return false
+            }
+        }
+        return true
     }
 
     private static func accessLevel(name: String, arguments: String, sandbox: String, approval: String) -> String {

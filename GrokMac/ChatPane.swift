@@ -687,30 +687,26 @@ private struct ApprovalPill: View {
     @Environment(AppModel.self) private var model
     @State private var hover = false
 
-    private static let options: [(tag: String, title: String, short: String, icon: String)] = [
-        ("on-request", "越界才问", "需批准", "hand.raised"),
-        ("never", "不问", "不问", "exclamationmark.triangle"),
-    ]
-
     var body: some View {
-        let current = Self.options.first { $0.tag == model.approvalPolicy } ?? Self.options[0]
-        let risky = model.approvalPolicy == "never"
+        let current = ApprovalMode.current(model.approvalPolicy)
+        let risky = current.tag == "never"
         Menu {
-            ForEach(Self.options, id: \.tag) { option in
+            ForEach(ApprovalMode.all, id: \.tag) { mode in
                 Button {
-                    model.setApproval(option.tag)
+                    model.setApproval(mode.tag)
                 } label: {
-                    if option.tag == model.approvalPolicy {
-                        Label(option.title, systemImage: "checkmark")
-                    } else {
-                        Text(option.title)
+                    Label {
+                        Text(mode.title)
+                        Text(mode.detail)
+                    } icon: {
+                        Image(systemName: mode.tag == current.tag ? "checkmark" : mode.icon)
                     }
                 }
             }
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: current.icon)
-                Text(current.short)
+                Text(current.title)
             }
             .font(Theme.ui(13, .medium))
             .foregroundStyle(risky ? Color.orange : Theme.fg2)
@@ -722,6 +718,6 @@ private struct ApprovalPill: View {
         .frame(height: 32)
         .background(Capsule().fill(risky ? Color.orange.opacity(0.12) : (hover ? Theme.hover : Color.clear)))
         .onHover { hover = $0 }
-        .help(risky ? "批准：不问——命令和改动不会先征求你同意" : "批准：越界或敏感操作前先问你")
+        .help("\(current.title)：\(current.detail)")
     }
 }
