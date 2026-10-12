@@ -59,7 +59,13 @@ struct ChatPane: View {
                     }
                     .onChange(of: model.gateTitle) { _, title in
                         guard !title.isEmpty else { return }
-                        withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo("gate", anchor: .bottom) }
+                        // The gate row is created in this same update, so scroll on the next runloop turns
+                        // once the lazy stack has laid it out.
+                        for delay in [0.05, 0.3] {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                                withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo("gate", anchor: .bottom) }
+                            }
+                        }
                     }
                     .onChange(of: visible.last?.content) { _, _ in
                         if Prefs.shared.autoScroll, let id = visible.last?.id {

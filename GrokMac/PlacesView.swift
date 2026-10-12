@@ -5,11 +5,20 @@ struct PlacesView: View {
 
     var body: some View {
         switch model.place {
-        case .library: LibraryPage()
-        case .automations: AutomationsPage()
-        case .hub: HubPage()
+        case .library: LibraryPage().warmPage()
+        case .automations: AutomationsPage().warmPage()
+        case .hub: HubPage().warmPage()
         default: ChatPane()
         }
+    }
+}
+
+/// Non-chat pages sit on the same warm-gray page color as the chat instead of the window default.
+private extension View {
+    func warmPage() -> some View {
+        frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(Theme.base)
+            .scrollContentBackground(.hidden)
     }
 }
 
@@ -88,6 +97,7 @@ private struct AutomationsPage: View {
                                 model.automations[index].enabled.toggle()
                             }
                         }
+                        Button("删除", role: .destructive) { model.automations.removeAll { $0.id == item.id } }
                     }
                 }
             }
@@ -202,6 +212,7 @@ private struct SkillsEditor: View {
                             model.skills[index].on.toggle()
                         }
                     }
+                    Button("删除", role: .destructive) { model.skills.removeAll { $0.id == skill.id } }
                 }
             }
             TextField("技能名称", text: $name).textFieldStyle(.roundedBorder)
@@ -232,7 +243,15 @@ private struct BotsEditor: View {
                         Text(bot.prompt).lineLimit(2).font(Theme.ui(11)).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button("使用") { model.activeBotID = bot.id; model.place = .chat }
+                    if model.activeBotID == bot.id {
+                        Button("停用") { model.activeBotID = nil }
+                    } else {
+                        Button("使用") { model.activeBotID = bot.id; model.place = .chat }
+                    }
+                    Button("删除", role: .destructive) {
+                        if model.activeBotID == bot.id { model.activeBotID = nil }
+                        model.bots.removeAll { $0.id == bot.id }
+                    }
                 }
             }
             TextField("Bot 名称", text: $name).textFieldStyle(.roundedBorder)

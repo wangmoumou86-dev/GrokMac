@@ -18,10 +18,11 @@ final class AppModel {
     var hubTab = "connectors"
     var botsOpen = true
     var connected: [String] = ["github"]
-    var bots: [GrokBot] = []
-    var skills: [GrokSkill] = GrokCatalog.defaultSkills
-    var automations: [GrokAutomation] = []
-    var activeBotID: UUID?
+    // Persist every edit made from the Skills / Bots / Automations pages.
+    var bots: [GrokBot] = [] { didSet { scheduleSave() } }
+    var skills: [GrokSkill] = GrokCatalog.defaultSkills { didSet { scheduleSave() } }
+    var automations: [GrokAutomation] = [] { didSet { scheduleSave() } }
+    var activeBotID: UUID? { didSet { scheduleSave() } }
     var busy = false
     var showPalette = false
     var showSettings = false
