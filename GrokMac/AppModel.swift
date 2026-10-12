@@ -5,6 +5,8 @@ import Observation
 @MainActor
 @Observable
 final class AppModel {
+    /// Declared first so old sandbox data is copied before any other property reads preferences.
+    @ObservationIgnored private let migrated: Void = SandboxMigration.run()
     var sessions: [ChatSession]
     var activeID: UUID
     var tier: ReplyTier
