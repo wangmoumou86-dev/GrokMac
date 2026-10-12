@@ -8,6 +8,12 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section("账号") {
+                Button("登录") { LoginSession.shared.start() }
+                Text("打开 xAI 官方登录页 accounts.x.ai，用 X、Google 或 Apple 授权。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Section("沙箱") {
                 Picker("范围", selection: Binding(
                     get: { model.sandboxMode },

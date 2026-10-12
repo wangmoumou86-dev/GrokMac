@@ -88,6 +88,19 @@ struct SidebarView: View {
             .searchable(text: $query, placement: .sidebar, prompt: "搜索")
             Divider()
             Button {
+                LoginSession.shared.start()
+            } label: {
+                Label("登录", systemImage: "person.crop.circle")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 8)
+                    .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .help("打开 accounts.x.ai 的官方登录")
+            Button {
                 model.place = .hub
                 model.hubTab = "connectors"
             } label: {
