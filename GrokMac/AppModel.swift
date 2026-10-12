@@ -31,6 +31,8 @@ final class AppModel {
     var approvalPolicy = "on-request"
     var useWorktree = false
     var imagineVideo = false
+    var voiceOpen = false
+    let voice = VoiceSession()
     var webSearch = UserDefaults.standard.bool(forKey: "grok.webSearch") {
         didSet { UserDefaults.standard.set(webSearch, forKey: "grok.webSearch") }
     }
@@ -381,6 +383,32 @@ final class AppModel {
             finish(sessionID: sessionID, messageID: messageID, content: message, error: true)
         }
         busy = false
+    }
+
+    func startVoice() {
+        voiceOpen = true
+        let instructions = "You are Grok, built by xAI, talking with the user by voice in a Mac app. Reply in the user's language, briefly and naturally, the way people speak. " + contextNote()
+        let key = KeychainStore.load()
+        Task { await voice.start(key: key, instructions: instructions) }
+    }
+
+    /// Ends voice mode and keeps the spoken exchange in the current chat.
+    func endVoice() {
+        voice.stop()
+        voiceOpen = false
+        let spoken = voice.lines.filter { !$0.text.hasPrefix("⚠️") }
+        guard !spoken.isEmpty else { return }
+        updateActive { session in
+            for line in spoken {
+                session.messages.append(ChatMessage(role: line.fromUser ? .user : .assistant, content: line.text, surface: .web))
+            }
+            if session.title == "新对话", let first = spoken.first(where: \.fromUser) {
+                session.title = String(first.text.prefix(36))
+            }
+            session.updatedAt = .now
+        }
+        voice.lines = []
+        scheduleSave()
     }
 
     private func runVideo(sessionID: UUID, messageID: UUID, prompt: String, key: String) async {
