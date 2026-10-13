@@ -103,7 +103,7 @@ final class AppModel {
         avatar = nil
         AccountProfile.clearCache()
         showLogin = true
-        loginWaiting = false
+        // Leave an open sign-in alone: its code box must stay until login succeeds or is cancelled.
     }
 
     /// Reads name/email/picture from auth.x.ai userinfo with the stored token (no re-login).
