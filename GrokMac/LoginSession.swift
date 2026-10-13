@@ -142,7 +142,8 @@ enum LoginSession {
                 finish(false)
                 return
             }
-            KeychainStore.save(token)
+            TokenStore.store(json ?? [:])
+            NSLog("GrokMac login: refresh token %@", ((json?["refresh_token"] as? String) ?? "").isEmpty ? "missing" : "received")
             finish(true)
         } catch {
             finish(false)

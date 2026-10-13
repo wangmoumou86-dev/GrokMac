@@ -38,7 +38,7 @@ final class UsageStore {
 
     /// Asks grok.com/rest/rate-limits with the app's bearer token. Shows only what it actually returns.
     func probeGrokCom() async {
-        let token = KeychainStore.load()
+        let token = await TokenStore.valid()
         guard !token.isEmpty else { grokComStatus = "no token"; return }
         var request = URLRequest(url: URL(string: "https://grok.com/rest/rate-limits")!)
         request.httpMethod = "POST"

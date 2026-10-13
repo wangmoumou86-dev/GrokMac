@@ -300,7 +300,8 @@ enum LocalTools {
         var request = URLRequest(url: URL(string: url)!)
         request.httpMethod = "POST"
         request.timeoutInterval = 45
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        let fresh = await TokenStore.valid()
+        request.setValue("Bearer \(fresh.isEmpty ? key : fresh)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: request)

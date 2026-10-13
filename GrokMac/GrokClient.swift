@@ -31,9 +31,11 @@ enum GrokClient {
         tools: [[String: Any]],
         onEvent: @escaping @MainActor (StreamEvent) -> Void
     ) async throws -> [[String: Any]] {
+        var token = await TokenStore.valid()
+        if token.isEmpty { token = key }
         var request = URLRequest(url: URL(string: "https://api.x.ai/v1/responses")!)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = model.contains("multi-agent") ? 900 : 300
         var payload: [String: Any] = ["model": model, "stream": true, "store": false, "input": input]
@@ -41,7 +43,12 @@ enum GrokClient {
         if let effort { payload["reasoning"] = ["effort": effort] }
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
-        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        var (bytes, response) = try await URLSession.shared.bytes(for: request)
+        // 401: refresh the token once and retry; a failed refresh signs the user out for real.
+        if (response as? HTTPURLResponse)?.statusCode == 401, let fresh = await TokenStore.refresh() {
+            request.setValue("Bearer \(fresh)", forHTTPHeaderField: "Authorization")
+            (bytes, response) = try await URLSession.shared.bytes(for: request)
+        }
         guard let http = response as? HTTPURLResponse else {
             throw GrokClientError.badStatus(-1, tr("连接 Grok 失败。", "Couldn't connect to Grok."))
         }
@@ -626,7 +633,8 @@ enum GrokClient {
     }
 
     static func imagine(key: String, prompt: String) async throws -> String {
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fresh = await TokenStore.valid()
+        let trimmed = (fresh.isEmpty ? key : fresh).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw GrokClientError.missingKey }
         for model in ["grok-imagine-image-2.0", "grok-imagine-image"] {
             var request = URLRequest(url: URL(string: "https://api.x.ai/v1/images/generations")!)
@@ -647,7 +655,8 @@ enum GrokClient {
     /// Async video generation: POST /v1/videos/generations then poll GET /v1/videos/{request_id}.
     /// https://docs.x.ai/developers/rest-api-reference/inference/videos
     static func imagineVideo(key: String, prompt: String, onProgress: @escaping @MainActor (Int) -> Void) async throws -> URL {
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fresh = await TokenStore.valid()
+        let trimmed = (fresh.isEmpty ? key : fresh).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw GrokClientError.missingKey }
         var requestID = ""
         var lastStatus = 0

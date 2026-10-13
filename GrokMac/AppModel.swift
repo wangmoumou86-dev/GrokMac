@@ -84,6 +84,26 @@ final class AppModel {
             clearLoginErrors()
             refreshProfile()
         }
+        NotificationCenter.default.addObserver(forName: TokenStore.signedOutNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tokenRevoked() }
+        }
+        // Refresh ahead of expiry while the app is open, not only when a message is sent.
+        Task { @MainActor [weak self] in
+            while self != nil {
+                if self?.signedIn == true { _ = await TokenStore.valid() }
+                try? await Task.sleep(for: .seconds(240))
+            }
+        }
+    }
+
+    /// The refresh token was refused or missing: show the real signed-out state.
+    private func tokenRevoked() {
+        signedIn = false
+        profile = nil
+        avatar = nil
+        AccountProfile.clearCache()
+        showLogin = true
+        loginWaiting = false
     }
 
     /// Reads name/email/picture from auth.x.ai userinfo with the stored token (no re-login).
@@ -120,7 +140,7 @@ final class AppModel {
     }
 
     func signOut() {
-        KeychainStore.save("")
+        KeychainStore.clearAll()
         signedIn = false
         profile = nil
         avatar = nil
