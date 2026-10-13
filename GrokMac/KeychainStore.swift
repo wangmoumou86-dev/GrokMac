@@ -143,6 +143,9 @@ enum TokenStore {
     static func valid() async -> String {
         let current = KeychainStore.load()
         guard !current.isEmpty else { return "" }
+        // Tokens saved by builds before refresh support can't be renewed and expire silently;
+        // treat them as signed out so the UI shows the real state and asks for one fresh login.
+        if KeychainStore.loadRefresh().isEmpty { return await refresh() ?? "" }
         let forced = UserDefaults.standard.bool(forKey: "grok.debug.forceRefresh")
         if forced { UserDefaults.standard.removeObject(forKey: "grok.debug.forceRefresh") }
         if forced || (KeychainStore.loadExpiry().map { $0.timeIntervalSinceNow < margin } ?? false) {
